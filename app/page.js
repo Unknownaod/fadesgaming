@@ -1,20 +1,3 @@
-"use client";
-/* eslint-disable @next/next/no-img-element */
-
-/*
- * Fades Gaming Hub: home page (gaming.fades.lol)
- *
- * Data sources
- *   News:    GET https://api.fades.lol/browser/gaming-news
- *   Esports: GET /api/gaming/esports  (your PandaScore / OpenDota route)
- *
- * Override either one in .env.local:
- *   NEXT_PUBLIC_GAMING_NEWS_API=https://api.fades.lol/browser/gaming-news
- *   NEXT_PUBLIC_ESPORTS_API=/api/gaming/esports
- *
- * Styles: keep your existing globals.css, and add hub.css next to this file.
- */
-
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "./globals.css";
 
