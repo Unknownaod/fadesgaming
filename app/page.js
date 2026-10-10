@@ -11,18 +11,6 @@ import {
   useSession,
 } from "./community";
 
-import {
-  SiCounterstrike,
-  SiValorant,
-  SiDota2,
-  SiLeagueoflegends,
-  SiRocket,
-  SiOverwatch,
-  SiUbisoft,
-  SiCallofduty,
-  SiPubg,
-  SiStarcraft,
-} from "react-icons/si";
 
 const LOGO_SRC = "/logo.png";
 
