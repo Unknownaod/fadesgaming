@@ -6,50 +6,92 @@ import "./dashboard.css";
 
 const API_BASE = process.env.NEXT_PUBLIC_FADES_API || "https://api.fades.lol";
 const GAMING_API = process.env.NEXT_PUBLIC_GAMING_API || `${API_BASE}/gaming`;
-const SIGN_IN_URL = process.env.NEXT_PUBLIC_FADES_SIGNIN || "https://fades.lol/acc/security/manage";
+const SIGN_IN_URL =
+  process.env.NEXT_PUBLIC_FADES_SIGNIN ||
+  "https://fades.lol/acc/security/manage";
 
 /* =========================================================
-   API + SHARED HOOKS (same credentialed fetch as GamingHub)
-   ========================================================= */
+   API + SHARED HOOKS
+========================================================= */
 
 async function api(path, { method = "GET", body } = {}) {
   const response = await fetch(`${GAMING_API}${path}`, {
     method,
     credentials: "include",
-    headers: { Accept: "application/json", ...(body ? { "Content-Type": "application/json" } : {}) },
+    headers: {
+      Accept: "application/json",
+      ...(body ? { "Content-Type": "application/json" } : {}),
+    },
     body: body ? JSON.stringify(body) : undefined,
   });
 
   let data = null;
+
   try {
     data = await response.json();
   } catch {
-    /* empty body */
+    /* Empty response body */
   }
 
-  if (!response.ok) throw Object.assign(new Error(data?.error || `Request failed (${response.status})`), { status: response.status });
+  if (!response.ok) {
+    throw Object.assign(
+      new Error(data?.error || `Request failed (${response.status})`),
+      { status: response.status }
+    );
+  }
 
   return data;
 }
 
 function useApi(path) {
-  const [state, setState] = useState({ data: null, loading: Boolean(path), error: "" });
+  const [state, setState] = useState({
+    data: null,
+    loading: Boolean(path),
+    error: "",
+  });
+
   const [nonce, setNonce] = useState(0);
 
   useEffect(() => {
     if (!path) return undefined;
+
     let stopped = false;
 
+    setState((current) => ({
+      ...current,
+      loading: true,
+      error: "",
+    }));
+
     api(path)
-      .then((data) => !stopped && setState({ data, loading: false, error: "" }))
-      .catch((e) => !stopped && setState((c) => ({ ...c, loading: false, error: e.message })));
+      .then((data) => {
+        if (!stopped) {
+          setState({
+            data,
+            loading: false,
+            error: "",
+          });
+        }
+      })
+      .catch((error) => {
+        if (!stopped) {
+          setState((current) => ({
+            ...current,
+            loading: false,
+            error: error.message,
+          }));
+        }
+      });
 
     return () => {
       stopped = true;
     };
   }, [path, nonce]);
 
-  return { ...state, reload: useCallback(() => setNonce((n) => n + 1), []) };
+  return {
+    ...state,
+    reload: useCallback(() => setNonce((n) => n + 1), []),
+  };
 }
 
 function useAct(done) {
@@ -60,11 +102,12 @@ function useAct(done) {
     async (fn) => {
       setError("");
       setBusy(true);
+
       try {
         await fn();
         await done?.();
-      } catch (e) {
-        setError(e.message);
+      } catch (error) {
+        setError(error.message);
       } finally {
         setBusy(false);
       }
@@ -76,13 +119,22 @@ function useAct(done) {
 }
 
 function useSession() {
-  const [state, setState] = useState({ loading: true, me: null });
+  const [state, setState] = useState({
+    loading: true,
+    me: null,
+  });
 
   const refresh = useCallback(async () => {
     try {
-      setState({ loading: false, me: await api("/me") });
+      setState({
+        loading: false,
+        me: await api("/me"),
+      });
     } catch {
-      setState({ loading: false, me: null });
+      setState({
+        loading: false,
+        me: null,
+      });
     }
   }, []);
 
@@ -90,33 +142,68 @@ function useSession() {
     refresh();
   }, [refresh]);
 
-  return { ...state, signedIn: Boolean(state.me?.user), refresh };
+  return {
+    ...state,
+    signedIn: Boolean(state.me?.user),
+    refresh,
+  };
 }
 
 function useFields(initial) {
   const [values, setValues] = useState(initial);
-  const bind = (key) => ({ value: values[key], onChange: (e) => setValues((c) => ({ ...c, [key]: e.target.value })) });
-  return [values, bind, () => setValues(initial)];
+
+  const bind = (key) => ({
+    value: values[key],
+    onChange: (event) =>
+      setValues((current) => ({
+        ...current,
+        [key]: event.target.value,
+      })),
+  });
+
+  return [
+    values,
+    bind,
+    () => setValues(initial),
+  ];
 }
 
 /* =========================================================
    SMALL PIECES
-   ========================================================= */
+========================================================= */
 
-const csv = (v) => String(v || "").split(",").map((s) => s.trim()).filter(Boolean);
+const csv = (value) =>
+  String(value || "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
 
 const ago = (ms) => {
   if (!ms) return "";
-  const m = Math.floor((Date.now() - ms) / 60000);
-  if (m < 1) return "Just now";
-  if (m < 60) return `${m}m ago`;
-  if (m < 1440) return `${Math.floor(m / 60)}h ago`;
-  return `${Math.floor(m / 1440)}d ago`;
+
+  const minutes = Math.floor((Date.now() - ms) / 60000);
+
+  if (minutes < 1) return "Just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  if (minutes < 1440) return `${Math.floor(minutes / 60)}h ago`;
+
+  return `${Math.floor(minutes / 1440)}d ago`;
 };
 
-const Err = ({ e }) => (e ? <p className="form-error" role="alert">{e}</p> : null);
+const Err = ({ e }) =>
+  e ? (
+    <p className="form-error" role="alert">
+      {e}
+    </p>
+  ) : null;
 
-const Btn = ({ primary, ...props }) => <button type="button" className={`hub-button ${primary ? "primary" : ""}`} {...props} />;
+const Btn = ({ primary, ...props }) => (
+  <button
+    type="button"
+    className={`hub-button ${primary ? "primary" : ""}`}
+    {...props}
+  />
+);
 
 const Empty = ({ title, body }) => (
   <div className="systems-empty">
@@ -129,37 +216,60 @@ const Card = ({ top, pill, title, sub, children, extra }) => (
   <div className="system-card community-card">
     <div className="match-top">
       <span className="match-game">{top}</span>
-      {pill != null && pill !== "" && <span className="status-pill">{pill}</span>}
+      {pill != null && pill !== "" && (
+        <span className="status-pill">{pill}</span>
+      )}
     </div>
+
     <strong className="card-title">{title}</strong>
+
     {sub && <span className="card-sub">{sub}</span>}
+
     {children && <div className="card-actions">{children}</div>}
+
     {extra}
   </div>
 );
 
 const GameSel = ({ games, value, ...props }) => (
-  <select className="hub-input" value={value || games[0]?.id || ""} {...props}>
-    {games.map((g) => (
-      <option key={g.id} value={g.id}>{g.label}</option>
+  <select
+    className="hub-input"
+    value={value || games[0]?.id || ""}
+    {...props}
+  >
+    {games.map((game) => (
+      <option key={game.id} value={game.id}>
+        {game.label}
+      </option>
     ))}
   </select>
 );
 
 function Loading({ list }) {
-  return list.loading && !list.data ? <div className="skeleton-card" /> : <Err e={list.error} />;
+  return list.loading && !list.data ? (
+    <div className="skeleton-card" />
+  ) : (
+    <Err e={list.error} />
+  );
 }
 
 /* =========================================================
    OVERVIEW
-   ========================================================= */
+========================================================= */
 
 function Overview({ session, setTab, prefs }) {
   const stats = useApi("/stats");
   const s = stats.data || {};
+
   const { teams, follows, unread, admin } = session.me;
 
-  const mine = [["Teams", teams.length], ["Following", follows], ["Unread", unread], ["Role", admin ? "Mod" : "Player"]];
+  const mine = [
+    ["Teams", teams.length],
+    ["Following", follows],
+    ["Unread", unread],
+    ["Role", admin ? "Mod" : "Player"],
+  ];
+
   const actions = [
     ["Create a team", "Start a squad and invite players.", "teams"],
     ["Host a tournament", "Run a bracket and report the results.", "tournaments"],
@@ -168,13 +278,22 @@ function Overview({ session, setTab, prefs }) {
     ["Update your profile", "Gamertag, platforms and social links.", "profile"],
     ["Review your account", "Your ID, linked profiles and data.", "account"],
   ];
-  const hub = [["Players", s.players], ["Open parties", s.openLfg], ["Tournaments", s.tournaments], ["Posts", s.posts]];
+
+  const hub = [
+    ["Players", s.players],
+    ["Open parties", s.openLfg],
+    ["Tournaments", s.tournaments],
+    ["Posts", s.posts],
+  ];
 
   return (
     <>
       <div className="db-stats">
         {mine.map(([label, value]) => (
-          <div className="db-stat" key={label}><strong>{value}</strong><span>{label}</span></div>
+          <div className="db-stat" key={label}>
+            <strong>{value}</strong>
+            <span>{label}</span>
+          </div>
         ))}
       </div>
 
@@ -183,8 +302,11 @@ function Overview({ session, setTab, prefs }) {
           <div className="system-card" key={title}>
             <strong className="card-title">{title}</strong>
             <span className="card-sub">{body}</span>
+
             <div className="card-actions">
-              <Btn primary onClick={() => setTab(target)}>Open</Btn>
+              <Btn primary onClick={() => setTab(target)}>
+                Open
+              </Btn>
             </div>
           </div>
         ))}
@@ -194,16 +316,34 @@ function Overview({ session, setTab, prefs }) {
         <div className="db-banner">
           <div>
             <span className="kicker">Across the hub</span>
-            <h2>Everyone's playing.</h2>
-            <p>Live totals from the Fades gaming community. Jump in, find a squad and climb the board.</p>
+            <h2>Everyone&apos;s playing.</h2>
+            <p>
+              Live totals from the Fades gaming community. Jump in, find a
+              squad and climb the board.
+            </p>
+
             <div className="row">
-              <a className="hub-button primary" href={HUB_URL}>Open the hub</a>
-              <Btn onClick={() => setTab("tournaments")}>Host a tournament</Btn>
+              <a className="hub-button primary" href={HUB_URL}>
+                Open the hub
+              </a>
+
+              <Btn onClick={() => setTab("tournaments")}>
+                Host a tournament
+              </Btn>
             </div>
           </div>
-          <div className="db-stats" style={{ gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
+
+          <div
+            className="db-stats"
+            style={{
+              gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+            }}
+          >
             {hub.map(([label, value]) => (
-              <div className="db-stat" key={label}><strong>{value ?? "-"}</strong><span>{label}</span></div>
+              <div className="db-stat" key={label}>
+                <strong>{value ?? "-"}</strong>
+                <span>{label}</span>
+              </div>
             ))}
           </div>
         </div>
@@ -214,66 +354,138 @@ function Overview({ session, setTab, prefs }) {
 
 /* =========================================================
    PROFILE
-   ========================================================= */
+========================================================= */
 
-const LINK_KEYS = ["steam", "discord", "twitch", "youtube", "twitter", "riot", "battlenet", "xbox", "psn", "epic"];
+const LINK_KEYS = [
+  "steam",
+  "discord",
+  "twitch",
+  "youtube",
+  "twitter",
+  "riot",
+  "battlenet",
+  "xbox",
+  "psn",
+  "epic",
+];
 
 function ProfileTab({ onSaved }) {
   const d = useApi("/profiles/me");
+
   const [f, setF] = useState(null);
   const [saved, setSaved] = useState(false);
+
   const { act, error, busy } = useAct(onSaved);
 
   useEffect(() => {
     const p = d.data?.profile;
+
     if (p) {
       setF({
-        gamertag: p.gamertag,
-        bio: p.bio,
-        country: p.country,
-        platforms: p.platforms.join(", "),
-        favoriteGames: p.favoriteGames.join(", "),
-        links: { ...p.links },
+        gamertag: p.gamertag || "",
+        bio: p.bio || "",
+        country: p.country || "",
+        platforms: (p.platforms || []).join(", "),
+        favoriteGames: (p.favoriteGames || []).join(", "),
+        links: { ...(p.links || {}) },
       });
     }
   }, [d.data]);
 
   if (!f) return <Loading list={d} />;
 
-  const set = (k) => (e) => {
+  const set = (key) => (event) => {
     setSaved(false);
-    setF((c) => ({ ...c, [k]: e.target.value }));
+
+    setF((current) => ({
+      ...current,
+      [key]: event.target.value,
+    }));
   };
 
   const save = (event) => {
     event.preventDefault();
+
     act(async () => {
-      await api("/profiles/me", { method: "PUT", body: { ...f, platforms: csv(f.platforms), favoriteGames: csv(f.favoriteGames) } });
+      await api("/profiles/me", {
+        method: "PUT",
+        body: {
+          ...f,
+          platforms: csv(f.platforms),
+          favoriteGames: csv(f.favoriteGames),
+        },
+      });
+
       setSaved(true);
     });
   };
 
   return (
     <form className="form-card" onSubmit={save}>
-      <input className="hub-input" placeholder="Gamertag" maxLength={32} value={f.gamertag} onChange={set("gamertag")} />
-      <input className="hub-input" placeholder="Country" maxLength={40} value={f.country} onChange={set("country")} />
-      <input className="hub-input" placeholder="Platforms (PC, PS5, ...)" value={f.platforms} onChange={set("platforms")} />
-      <input className="hub-input" placeholder="Favourite game ids (cs2, valorant, ...)" value={f.favoriteGames} onChange={set("favoriteGames")} />
-      <textarea className="hub-input wide" placeholder="Bio" maxLength={300} rows={3} value={f.bio} onChange={set("bio")} />
+      <input
+        className="hub-input"
+        placeholder="Gamertag"
+        maxLength={32}
+        value={f.gamertag}
+        onChange={set("gamertag")}
+      />
 
-      {LINK_KEYS.map((k) => (
+      <input
+        className="hub-input"
+        placeholder="Country"
+        maxLength={40}
+        value={f.country}
+        onChange={set("country")}
+      />
+
+      <input
+        className="hub-input"
+        placeholder="Platforms (PC, PS5, ...)"
+        value={f.platforms}
+        onChange={set("platforms")}
+      />
+
+      <input
+        className="hub-input"
+        placeholder="Favourite game ids (cs2, valorant, ...)"
+        value={f.favoriteGames}
+        onChange={set("favoriteGames")}
+      />
+
+      <textarea
+        className="hub-input wide"
+        placeholder="Bio"
+        maxLength={300}
+        rows={3}
+        value={f.bio}
+        onChange={set("bio")}
+      />
+
+      {LINK_KEYS.map((key) => (
         <input
-          key={k}
+          key={key}
           className="hub-input"
-          placeholder={k}
+          placeholder={key}
           maxLength={64}
-          value={f.links[k] || ""}
-          onChange={(e) => setF((c) => ({ ...c, links: { ...c.links, [k]: e.target.value } }))}
+          value={f.links[key] || ""}
+          onChange={(event) =>
+            setF((current) => ({
+              ...current,
+              links: {
+                ...current.links,
+                [key]: event.target.value,
+              },
+            }))
+          }
         />
       ))}
 
-      <button type="submit" className="hub-button primary" disabled={busy}>Save profile</button>
+      <button type="submit" className="hub-button primary" disabled={busy}>
+        Save profile
+      </button>
+
       {saved && <small>Profile saved.</small>}
+
       <Err e={error} />
     </form>
   );
@@ -281,61 +493,125 @@ function ProfileTab({ onSaved }) {
 
 /* =========================================================
    TEAMS
-   ========================================================= */
+========================================================= */
 
 function TeamManage({ id, meId, onChange }) {
   const d = useApi(`/teams/${id}`);
+
   const { act, error, busy } = useAct(async () => {
     d.reload();
     onChange();
   });
 
   const t = d.data?.team;
+
   if (!t) return <Err e={d.error} />;
 
   const owner = t.ownerId === meId;
   const staff = owner || t.myRole === "admin";
-  const call = (path, method, body) => act(() => api(`/teams/${id}${path}`, { method, body }));
+
+  const call = (path, method, body) =>
+    act(() => api(`/teams/${id}${path}`, { method, body }));
 
   return (
     <div className="comments">
       <Err e={error} />
 
-      {t.members.map((m) => (
+      {(t.members || []).map((m) => (
         <p key={m.userId}>
           <b>{m.username}</b> {m.role}{" "}
+
           {owner && m.role !== "owner" && (
             <>
-              <Btn disabled={busy} onClick={() => call(`/members/${m.userId}`, "PATCH", { role: m.role === "admin" ? "member" : "admin" })}>
+              <Btn
+                disabled={busy}
+                onClick={() =>
+                  call(`/members/${m.userId}`, "PATCH", {
+                    role: m.role === "admin" ? "member" : "admin",
+                  })
+                }
+              >
                 {m.role === "admin" ? "Demote" : "Make admin"}
               </Btn>
-              <Btn disabled={busy} onClick={() => call(`/members/${m.userId}`, "PATCH", { role: "owner" })}>Make owner</Btn>
+
+              <Btn
+                disabled={busy}
+                onClick={() =>
+                  call(`/members/${m.userId}`, "PATCH", {
+                    role: "owner",
+                  })
+                }
+              >
+                Make owner
+              </Btn>
             </>
           )}
-          {m.role !== "owner" && m.userId !== meId && (owner || (staff && m.role === "member")) && (
-            <Btn disabled={busy} onClick={() => call(`/members/${m.userId}`, "DELETE")}>Remove</Btn>
-          )}
+
+          {m.role !== "owner" &&
+            m.userId !== meId &&
+            (owner || (staff && m.role === "member")) && (
+              <Btn
+                disabled={busy}
+                onClick={() =>
+                  call(`/members/${m.userId}`, "DELETE")
+                }
+              >
+                Remove
+              </Btn>
+            )}
         </p>
       ))}
 
       {(t.requests || []).map((r) => (
         <p key={r.userId}>
-          <b>{r.username}</b> wants to join {r.message && `- ${r.message}`}{" "}
-          <Btn primary disabled={busy} onClick={() => call(`/requests/${r.userId}/approve`, "POST")}>Approve</Btn>
-          <Btn disabled={busy} onClick={() => call(`/requests/${r.userId}`, "DELETE")}>Decline</Btn>
+          <b>{r.username}</b> wants to join{" "}
+          {r.message && `- ${r.message}`}{" "}
+
+          <Btn
+            primary
+            disabled={busy}
+            onClick={() =>
+              call(`/requests/${r.userId}/approve`, "POST")
+            }
+          >
+            Approve
+          </Btn>
+
+          <Btn
+            disabled={busy}
+            onClick={() => call(`/requests/${r.userId}`, "DELETE")}
+          >
+            Decline
+          </Btn>
         </p>
       ))}
 
       <div className="card-actions">
         {staff && (
-          <Btn disabled={busy} onClick={() => call("", "PATCH", { open: !t.open })}>
+          <Btn
+            disabled={busy}
+            onClick={() => call("", "PATCH", { open: !t.open })}
+          >
             {t.open ? "Switch to invite only" : "Switch to open"}
           </Btn>
         )}
+
         {owner ? (
-          <Btn disabled={busy} onClick={() => confirm("Delete this team?") && call("", "DELETE")}>Delete team</Btn>
+          <Btn
+            disabled={busy}
+            onClick={() =>
+              confirm("Delete this team?") && call("", "DELETE")
+            }
+          >
+            Delete team
+          </Btn>
         ) : (
-          <Btn disabled={busy} onClick={() => call("/leave", "POST")}>Leave team</Btn>
+          <Btn
+            disabled={busy}
+            onClick={() => call("/leave", "POST")}
+          >
+            Leave team
+          </Btn>
         )}
       </div>
     </div>
@@ -345,13 +621,29 @@ function TeamManage({ id, meId, onChange }) {
 function TeamsTab({ games, session }) {
   const [open, setOpen] = useState(false);
   const [managing, setManaging] = useState(null);
-  const [f, bind, reset] = useFields({ name: "", tag: "", game: "", region: "", description: "" });
+
+  const [f, bind, reset] = useFields({
+    name: "",
+    tag: "",
+    game: "",
+    region: "",
+    description: "",
+  });
+
   const { act, error, busy } = useAct(session.refresh);
 
   const create = (event) => {
     event.preventDefault();
+
     act(async () => {
-      await api("/teams", { method: "POST", body: { ...f, game: f.game || games[0]?.id } });
+      await api("/teams", {
+        method: "POST",
+        body: {
+          ...f,
+          game: f.game || games[0]?.id,
+        },
+      });
+
       reset();
       setOpen(false);
     });
@@ -360,24 +652,63 @@ function TeamsTab({ games, session }) {
   return (
     <div className="community-panel">
       <div className="panel-actions">
-        <Btn onClick={() => setOpen((v) => !v)}>{open ? "Cancel" : "Create a team"}</Btn>
+        <Btn onClick={() => setOpen((value) => !value)}>
+          {open ? "Cancel" : "Create a team"}
+        </Btn>
       </div>
 
       {open && (
         <form className="form-card" onSubmit={create}>
-          <input className="hub-input" placeholder="Team name" maxLength={40} required {...bind("name")} />
-          <input className="hub-input" placeholder="Tag (2-5)" maxLength={5} required {...bind("tag")} />
+          <input
+            className="hub-input"
+            placeholder="Team name"
+            maxLength={40}
+            required
+            {...bind("name")}
+          />
+
+          <input
+            className="hub-input"
+            placeholder="Tag (2-5)"
+            maxLength={5}
+            required
+            {...bind("tag")}
+          />
+
           <GameSel games={games} {...bind("game")} value={f.game} />
-          <input className="hub-input" placeholder="Region" maxLength={30} {...bind("region")} />
-          <textarea className="hub-input wide" placeholder="Description" maxLength={500} rows={2} {...bind("description")} />
-          <button type="submit" className="hub-button primary" disabled={busy}>Create team</button>
+
+          <input
+            className="hub-input"
+            placeholder="Region"
+            maxLength={30}
+            {...bind("region")}
+          />
+
+          <textarea
+            className="hub-input wide"
+            placeholder="Description"
+            maxLength={500}
+            rows={2}
+            {...bind("description")}
+          />
+
+          <button
+            type="submit"
+            className="hub-button primary"
+            disabled={busy}
+          >
+            Create team
+          </button>
         </form>
       )}
 
       <Err e={error} />
 
       {session.me.teams.length === 0 ? (
-        <Empty title="No teams yet" body="Create one or join a team from the hub." />
+        <Empty
+          title="No teams yet"
+          body="Create one or join a team from the hub."
+        />
       ) : (
         <div className="stack">
           {session.me.teams.map((t) => (
@@ -386,10 +717,26 @@ function TeamsTab({ games, session }) {
               top={games.find((g) => g.id === t.game)?.label || t.game}
               pill={t.myRole}
               title={`${t.name} [${t.tag}]`}
-              sub={`${t.memberCount} members · ${t.open ? "Open" : "Invite only"}`}
-              extra={managing === t.id && <TeamManage id={t.id} meId={session.me.user.id} onChange={session.refresh} />}
+              sub={`${t.memberCount} members · ${
+                t.open ? "Open" : "Invite only"
+              }`}
+              extra={
+                managing === t.id && (
+                  <TeamManage
+                    id={t.id}
+                    meId={session.me.user.id}
+                    onChange={session.refresh}
+                  />
+                )
+              }
             >
-              <Btn onClick={() => setManaging(managing === t.id ? null : t.id)}>{managing === t.id ? "Close" : "Manage"}</Btn>
+              <Btn
+                onClick={() =>
+                  setManaging(managing === t.id ? null : t.id)
+                }
+              >
+                {managing === t.id ? "Close" : "Manage"}
+              </Btn>
             </Card>
           ))}
         </div>
@@ -399,37 +746,93 @@ function TeamsTab({ games, session }) {
 }
 
 /* =========================================================
-   PARTIES (looking for group)
-   ========================================================= */
+   PARTIES
+========================================================= */
 
 function PartiesTab({ games, meId }) {
   const list = useApi("/lfg?status=all&limit=100");
   const { act, error, busy } = useAct(list.reload);
-  const mine = (list.data?.parties || []).filter((p) => p.authorId === meId || p.joined.some((j) => j.userId === meId));
+
+  const mine = (list.data?.parties || []).filter(
+    (party) =>
+      party.authorId === meId ||
+      (party.joined || []).some((member) => member.userId === meId)
+  );
 
   return (
     <div className="community-panel">
       <Err e={error} />
       <Loading list={list} />
 
-      {list.data && mine.length === 0 && <Empty title="No parties" body="Post one from the Community section." />}
+      {list.data && mine.length === 0 && (
+        <Empty
+          title="No parties"
+          body="Post one from the Community section."
+        />
+      )}
 
       <div className="system-grid">
-        {mine.map((p) => {
-          const author = p.authorId === meId;
-          const live = ["open", "full"].includes(p.status);
+        {mine.map((party) => {
+          const author = party.authorId === meId;
+          const live = ["open", "full"].includes(party.status);
 
           return (
             <Card
-              key={p.id}
-              top={games.find((g) => g.id === p.game)?.label || p.game}
-              pill={`${p.status} · ${p.joined.length}/${p.playersNeeded}`}
-              title={p.title}
-              sub={[p.platform, p.rank, p.region].filter(Boolean).join(" · ")}
+              key={party.id}
+              top={
+                games.find((game) => game.id === party.game)?.label ||
+                party.game
+              }
+              pill={`${party.status} · ${party.joined.length}/${party.playersNeeded}`}
+              title={party.title}
+              sub={[party.platform, party.rank, party.region]
+                .filter(Boolean)
+                .join(" · ")}
             >
-              {author && live && <Btn disabled={busy} onClick={() => act(() => api(`/lfg/${p.id}/close`, { method: "POST" }))}>Close</Btn>}
-              {author && <Btn disabled={busy} onClick={() => act(() => api(`/lfg/${p.id}`, { method: "DELETE" }))}>Delete</Btn>}
-              {!author && live && <Btn disabled={busy} onClick={() => act(() => api(`/lfg/${p.id}/leave`, { method: "POST" }))}>Leave</Btn>}
+              {author && live && (
+                <Btn
+                  disabled={busy}
+                  onClick={() =>
+                    act(() =>
+                      api(`/lfg/${party.id}/close`, {
+                        method: "POST",
+                      })
+                    )
+                  }
+                >
+                  Close
+                </Btn>
+              )}
+
+              {author && (
+                <Btn
+                  disabled={busy}
+                  onClick={() =>
+                    act(() =>
+                      api(`/lfg/${party.id}`, {
+                        method: "DELETE",
+                      })
+                    )
+                  }
+                >
+                  Delete
+                </Btn>
+              )}
+
+              {!author && live && (
+                <Btn
+                  disabled={busy}
+                  onClick={() =>
+                    act(() =>
+                      api(`/lfg/${party.id}/leave`, {
+                        method: "POST",
+                      })
+                    )
+                  }
+                >
+                  Leave
+                </Btn>
+              )}
             </Card>
           );
         })}
@@ -440,41 +843,93 @@ function PartiesTab({ games, meId }) {
 
 /* =========================================================
    TOURNAMENTS
-   ========================================================= */
+========================================================= */
 
 function ReportMatches({ id, onChange }) {
   const d = useApi(`/tournaments/${id}`);
   const [scores, setScores] = useState({});
+
   const { act, error, busy } = useAct(async () => {
     d.reload();
     onChange();
   });
 
   const t = d.data?.tournament;
+
   if (!t) return <Err e={d.error} />;
 
-  const ready = t.rounds.flat().filter((m) => m.status === "ready");
-  const set = (mid, side, value) => setScores((c) => ({ ...c, [mid]: { ...c[mid], [side]: value } }));
+  const ready = (t.rounds || []).flat().filter(
+    (match) => match.status === "ready"
+  );
+
+  const set = (matchId, side, value) =>
+    setScores((current) => ({
+      ...current,
+      [matchId]: {
+        ...current[matchId],
+        [side]: value,
+      },
+    }));
 
   return (
     <div className="comments">
       <Err e={error} />
-      {t.status === "registration" && <p>Entrants: {t.entrants.map((e) => e.name).join(", ") || "none yet"}</p>}
-      {t.status !== "registration" && ready.length === 0 && <p>{t.winner ? `Winner: ${t.winner.name}` : "No matches waiting for a result."}</p>}
 
-      {ready.map((m) => (
-        <div className="bracket-report" key={m.id}>
-          <span>{m.a.name} vs {m.b.name}</span>
-          <input className="hub-input" type="number" min="0" aria-label={`${m.a.name} score`} onChange={(e) => set(m.id, "a", e.target.value)} />
-          <input className="hub-input" type="number" min="0" aria-label={`${m.b.name} score`} onChange={(e) => set(m.id, "b", e.target.value)} />
+      {t.status === "registration" && (
+        <p>
+          Entrants:{" "}
+          {t.entrants.map((entrant) => entrant.name).join(", ") || "none yet"}
+        </p>
+      )}
+
+      {t.status !== "registration" && ready.length === 0 && (
+        <p>
+          {t.winner
+            ? `Winner: ${t.winner.name}`
+            : "No matches waiting for a result."}
+        </p>
+      )}
+
+      {ready.map((match) => (
+        <div className="bracket-report" key={match.id}>
+          <span>
+            {match.a.name} vs {match.b.name}
+          </span>
+
+          <input
+            className="hub-input"
+            type="number"
+            min="0"
+            aria-label={`${match.a.name} score`}
+            onChange={(event) =>
+              set(match.id, "a", event.target.value)
+            }
+          />
+
+          <input
+            className="hub-input"
+            type="number"
+            min="0"
+            aria-label={`${match.b.name} score`}
+            onChange={(event) =>
+              set(match.id, "b", event.target.value)
+            }
+          />
+
           <Btn
             disabled={busy}
             onClick={() =>
               act(() =>
-                api(`/tournaments/${id}/matches/${m.id}/report`, {
-                  method: "POST",
-                  body: { scoreA: Number(scores[m.id]?.a), scoreB: Number(scores[m.id]?.b) },
-                })
+                api(
+                  `/tournaments/${id}/matches/${match.id}/report`,
+                  {
+                    method: "POST",
+                    body: {
+                      scoreA: Number(scores[match.id]?.a),
+                      scoreB: Number(scores[match.id]?.b),
+                    },
+                  }
+                )
               )
             }
           >
@@ -489,16 +944,35 @@ function ReportMatches({ id, onChange }) {
 function TournamentsTab({ games, meId }) {
   const list = useApi("/tournaments?limit=100");
   const { act, error, busy } = useAct(list.reload);
+
   const [open, setOpen] = useState(false);
   const [managing, setManaging] = useState(null);
-  const [f, bind, reset] = useFields({ name: "", game: "", mode: "solo", maxEntrants: "16", prize: "" });
 
-  const mine = (list.data?.tournaments || []).filter((t) => t.ownerId === meId);
+  const [f, bind, reset] = useFields({
+    name: "",
+    game: "",
+    mode: "solo",
+    maxEntrants: "16",
+    prize: "",
+  });
+
+  const mine = (list.data?.tournaments || []).filter(
+    (tournament) => tournament.ownerId === meId
+  );
 
   const create = (event) => {
     event.preventDefault();
+
     act(async () => {
-      await api("/tournaments", { method: "POST", body: { ...f, game: f.game || games[0]?.id, maxEntrants: Number(f.maxEntrants) || 16 } });
+      await api("/tournaments", {
+        method: "POST",
+        body: {
+          ...f,
+          game: f.game || games[0]?.id,
+          maxEntrants: Number(f.maxEntrants) || 16,
+        },
+      });
+
       reset();
       setOpen(false);
     });
@@ -507,43 +981,132 @@ function TournamentsTab({ games, meId }) {
   return (
     <div className="community-panel">
       <div className="panel-actions">
-        <Btn onClick={() => setOpen((v) => !v)}>{open ? "Cancel" : "Host a tournament"}</Btn>
+        <Btn onClick={() => setOpen((value) => !value)}>
+          {open ? "Cancel" : "Host a tournament"}
+        </Btn>
       </div>
 
       {open && (
         <form className="form-card" onSubmit={create}>
-          <input className="hub-input" placeholder="Tournament name" maxLength={80} required {...bind("name")} />
+          <input
+            className="hub-input"
+            placeholder="Tournament name"
+            maxLength={80}
+            required
+            {...bind("name")}
+          />
+
           <GameSel games={games} {...bind("game")} value={f.game} />
+
           <select className="hub-input" {...bind("mode")}>
             <option value="solo">Solo</option>
             <option value="team">Teams</option>
           </select>
-          <input className="hub-input" type="number" min="2" max="64" placeholder="Max entrants" {...bind("maxEntrants")} />
-          <input className="hub-input" placeholder="Prize" maxLength={100} {...bind("prize")} />
-          <button type="submit" className="hub-button primary" disabled={busy}>Create</button>
+
+          <input
+            className="hub-input"
+            type="number"
+            min="2"
+            max="64"
+            placeholder="Max entrants"
+            {...bind("maxEntrants")}
+          />
+
+          <input
+            className="hub-input"
+            placeholder="Prize"
+            maxLength={100}
+            {...bind("prize")}
+          />
+
+          <button
+            type="submit"
+            className="hub-button primary"
+            disabled={busy}
+          >
+            Create
+          </button>
         </form>
       )}
 
       <Err e={error} />
       <Loading list={list} />
 
-      {list.data && mine.length === 0 && <Empty title="No tournaments hosted" body="Host one and let players sign up." />}
+      {list.data && mine.length === 0 && (
+        <Empty
+          title="No tournaments hosted"
+          body="Host one and let players sign up."
+        />
+      )}
 
       <div className="stack">
-        {mine.map((t) => (
+        {mine.map((tournament) => (
           <Card
-            key={t.id}
-            top={games.find((g) => g.id === t.game)?.label || t.game}
-            pill={t.status}
-            title={t.name}
-            sub={`${t.entrantCount}/${t.maxEntrants} entered · ${t.mode === "team" ? "Teams" : "Solo"}${t.winner ? ` · Winner: ${t.winner.name}` : ""}`}
-            extra={managing === t.id && <ReportMatches id={t.id} onChange={list.reload} />}
+            key={tournament.id}
+            top={
+              games.find((game) => game.id === tournament.game)?.label ||
+              tournament.game
+            }
+            pill={tournament.status}
+            title={tournament.name}
+            sub={`${tournament.entrantCount}/${tournament.maxEntrants} entered · ${
+              tournament.mode === "team" ? "Teams" : "Solo"
+            }${
+              tournament.winner
+                ? ` · Winner: ${tournament.winner.name}`
+                : ""
+            }`}
+            extra={
+              managing === tournament.id && (
+                <ReportMatches
+                  id={tournament.id}
+                  onChange={list.reload}
+                />
+              )
+            }
           >
-            {t.status === "registration" && t.entrantCount >= 2 && (
-              <Btn primary disabled={busy} onClick={() => act(() => api(`/tournaments/${t.id}/start`, { method: "POST" }))}>Start</Btn>
-            )}
-            <Btn onClick={() => setManaging(managing === t.id ? null : t.id)}>{managing === t.id ? "Close" : "Entrants and results"}</Btn>
-            <Btn disabled={busy} onClick={() => confirm("Delete this tournament?") && act(() => api(`/tournaments/${t.id}`, { method: "DELETE" }))}>Delete</Btn>
+            {tournament.status === "registration" &&
+              tournament.entrantCount >= 2 && (
+                <Btn
+                  primary
+                  disabled={busy}
+                  onClick={() =>
+                    act(() =>
+                      api(`/tournaments/${tournament.id}/start`, {
+                        method: "POST",
+                      })
+                    )
+                  }
+                >
+                  Start
+                </Btn>
+              )}
+
+            <Btn
+              onClick={() =>
+                setManaging(
+                  managing === tournament.id ? null : tournament.id
+                )
+              }
+            >
+              {managing === tournament.id
+                ? "Close"
+                : "Entrants and results"}
+            </Btn>
+
+            <Btn
+              disabled={busy}
+              onClick={() =>
+                confirm("Delete this tournament?") &&
+                act(() =>
+                  api(`/tournaments/${tournament.id}`, {
+                    method: "DELETE",
+                  })
+                )
+              }
+            >
+              Delete
+            </Btn>
           </Card>
         ))}
       </div>
@@ -553,19 +1116,33 @@ function TournamentsTab({ games, meId }) {
 
 /* =========================================================
    POSTS
-   ========================================================= */
+========================================================= */
 
 function PostsTab({ games, meId }) {
-  const list = useApi(`/posts?author=${encodeURIComponent(meId)}&limit=50`);
+  const list = useApi(
+    `/posts?author=${encodeURIComponent(meId)}&limit=50`
+  );
+
   const { act, error, busy } = useAct(list.reload);
   const [open, setOpen] = useState(false);
-  const [f, bind, reset] = useFields({ title: "", body: "", game: "" });
+
+  const [f, bind, reset] = useFields({
+    title: "",
+    body: "",
+    game: "",
+  });
+
   const posts = list.data?.posts || [];
 
   const create = (event) => {
     event.preventDefault();
+
     act(async () => {
-      await api("/posts", { method: "POST", body: f });
+      await api("/posts", {
+        method: "POST",
+        body: f,
+      });
+
       reset();
       setOpen(false);
     });
@@ -574,38 +1151,85 @@ function PostsTab({ games, meId }) {
   return (
     <div className="community-panel">
       <div className="panel-actions">
-        <Btn onClick={() => setOpen((v) => !v)}>{open ? "Cancel" : "New post"}</Btn>
+        <Btn onClick={() => setOpen((value) => !value)}>
+          {open ? "Cancel" : "New post"}
+        </Btn>
       </div>
 
       {open && (
         <form className="form-card" onSubmit={create}>
-          <input className="hub-input" placeholder="Title" maxLength={120} required {...bind("title")} />
+          <input
+            className="hub-input"
+            placeholder="Title"
+            maxLength={120}
+            required
+            {...bind("title")}
+          />
+
           <select className="hub-input" {...bind("game")}>
             <option value="">No game</option>
-            {games.map((g) => (
-              <option key={g.id} value={g.id}>{g.label}</option>
+
+            {games.map((game) => (
+              <option key={game.id} value={game.id}>
+                {game.label}
+              </option>
             ))}
           </select>
-          <textarea className="hub-input wide" placeholder="Share a clip, a guide or a thought" maxLength={5000} rows={3} {...bind("body")} />
-          <button type="submit" className="hub-button primary" disabled={busy}>Post</button>
+
+          <textarea
+            className="hub-input wide"
+            placeholder="Share a clip, a guide or a thought"
+            maxLength={5000}
+            rows={3}
+            {...bind("body")}
+          />
+
+          <button
+            type="submit"
+            className="hub-button primary"
+            disabled={busy}
+          >
+            Post
+          </button>
         </form>
       )}
 
       <Err e={error} />
       <Loading list={list} />
 
-      {list.data && posts.length === 0 && <Empty title="No posts yet" body="Your posts will show up here." />}
+      {list.data && posts.length === 0 && (
+        <Empty
+          title="No posts yet"
+          body="Your posts will show up here."
+        />
+      )}
 
       <div className="stack">
-        {posts.map((p) => (
+        {posts.map((post) => (
           <Card
-            key={p.id}
-            top={games.find((g) => g.id === p.game)?.label || p.game || "General"}
-            pill={ago(p.createdAt)}
-            title={p.title}
-            sub={`${p.likeCount} likes · ${p.commentCount} comments`}
+            key={post.id}
+            top={
+              games.find((game) => game.id === post.game)?.label ||
+              post.game ||
+              "General"
+            }
+            pill={ago(post.createdAt)}
+            title={post.title}
+            sub={`${post.likeCount} likes · ${post.commentCount} comments`}
           >
-            <Btn disabled={busy} onClick={() => confirm("Delete this post?") && act(() => api(`/posts/${p.id}`, { method: "DELETE" }))}>Delete</Btn>
+            <Btn
+              disabled={busy}
+              onClick={() =>
+                confirm("Delete this post?") &&
+                act(() =>
+                  api(`/posts/${post.id}`, {
+                    method: "DELETE",
+                  })
+                )
+              }
+            >
+              Delete
+            </Btn>
           </Card>
         ))}
       </div>
@@ -614,19 +1238,33 @@ function PostsTab({ games, meId }) {
 }
 
 /* =========================================================
-   GAMES (community-created)
-   ========================================================= */
+   GAMES
+========================================================= */
 
 function GamesTab({ allGames, meId, reloadGames }) {
   const { act, error, busy } = useAct(reloadGames);
+
   const [open, setOpen] = useState(false);
-  const [f, bind, reset] = useFields({ label: "", genre: "", description: "" });
-  const mine = allGames.filter((g) => g.custom && g.ownerId === meId);
+
+  const [f, bind, reset] = useFields({
+    label: "",
+    genre: "",
+    description: "",
+  });
+
+  const mine = allGames.filter(
+    (game) => game.custom && game.ownerId === meId
+  );
 
   const create = (event) => {
     event.preventDefault();
+
     act(async () => {
-      await api("/games", { method: "POST", body: f });
+      await api("/games", {
+        method: "POST",
+        body: f,
+      });
+
       reset();
       setOpen(false);
     });
@@ -635,27 +1273,75 @@ function GamesTab({ allGames, meId, reloadGames }) {
   return (
     <div className="community-panel">
       <div className="panel-actions">
-        <Btn onClick={() => setOpen((v) => !v)}>{open ? "Cancel" : "Add a game"}</Btn>
+        <Btn onClick={() => setOpen((value) => !value)}>
+          {open ? "Cancel" : "Add a game"}
+        </Btn>
       </div>
 
       {open && (
         <form className="form-card" onSubmit={create}>
-          <input className="hub-input" placeholder="Game name" maxLength={60} required {...bind("label")} />
-          <input className="hub-input" placeholder="Genre" maxLength={40} {...bind("genre")} />
-          <textarea className="hub-input wide" placeholder="Description" maxLength={500} rows={2} {...bind("description")} />
-          <button type="submit" className="hub-button primary" disabled={busy}>Add game</button>
+          <input
+            className="hub-input"
+            placeholder="Game name"
+            maxLength={60}
+            required
+            {...bind("label")}
+          />
+
+          <input
+            className="hub-input"
+            placeholder="Genre"
+            maxLength={40}
+            {...bind("genre")}
+          />
+
+          <textarea
+            className="hub-input wide"
+            placeholder="Description"
+            maxLength={500}
+            rows={2}
+            {...bind("description")}
+          />
+
+          <button
+            type="submit"
+            className="hub-button primary"
+            disabled={busy}
+          >
+            Add game
+          </button>
         </form>
       )}
 
       <Err e={error} />
 
       {mine.length === 0 ? (
-        <Empty title="No community games" body="Add a game so players can find squads for it." />
+        <Empty
+          title="No community games"
+          body="Add a game so players can find squads for it."
+        />
       ) : (
         <div className="system-grid">
-          {mine.map((g) => (
-            <Card key={g.id} top={g.genre || "Game"} title={g.label} sub={g.description}>
-              <Btn disabled={busy} onClick={() => confirm(`Delete ${g.label}?`) && act(() => api(`/games/${g.id}`, { method: "DELETE" }))}>Delete</Btn>
+          {mine.map((game) => (
+            <Card
+              key={game.id}
+              top={game.genre || "Game"}
+              title={game.label}
+              sub={game.description}
+            >
+              <Btn
+                disabled={busy}
+                onClick={() =>
+                  confirm(`Delete ${game.label}?`) &&
+                  act(() =>
+                    api(`/games/${game.id}`, {
+                      method: "DELETE",
+                    })
+                  )
+                }
+              >
+                Delete
+              </Btn>
             </Card>
           ))}
         </div>
@@ -666,15 +1352,20 @@ function GamesTab({ allGames, meId, reloadGames }) {
 
 /* =========================================================
    FOLLOWING
-   ========================================================= */
+========================================================= */
 
 function FollowsTab({ games, onChange }) {
   const list = useApi("/follows");
+
   const { act, error, busy } = useAct(async () => {
     list.reload();
     onChange();
   });
-  const [f, bind, reset] = useFields({ kind: "game", targetId: "" });
+
+  const [f, bind, reset] = useFields({
+    kind: "game",
+    targetId: "",
+  });
 
   const groups = [
     ["game", "Games", list.data?.games || []],
@@ -684,8 +1375,25 @@ function FollowsTab({ games, onChange }) {
 
   const follow = (event) => {
     event.preventDefault();
+
     act(async () => {
-      await api("/follows", { method: "POST", body: { kind: f.kind, targetId: (f.kind === "game" ? f.targetId || games[0]?.id : f.targetId).trim() } });
+      const targetId =
+        f.kind === "game"
+          ? f.targetId || games[0]?.id
+          : f.targetId;
+
+      if (!targetId) {
+        throw new Error("Enter an ID to follow.");
+      }
+
+      await api("/follows", {
+        method: "POST",
+        body: {
+          kind: f.kind,
+          targetId: targetId.trim(),
+        },
+      });
+
       reset();
     });
   };
@@ -695,15 +1403,34 @@ function FollowsTab({ games, onChange }) {
       <form className="form-card" onSubmit={follow}>
         <select className="hub-input" {...bind("kind")}>
           <option value="game">Game</option>
-          <option value="team">Team id</option>
-          <option value="user">Player id</option>
+          <option value="team">Team ID</option>
+          <option value="user">Player ID</option>
         </select>
+
         {f.kind === "game" ? (
-          <GameSel games={games} value={f.targetId} onChange={(e) => bind("targetId").onChange(e)} />
+          <GameSel
+            games={games}
+            value={f.targetId}
+            onChange={(event) =>
+              bind("targetId").onChange(event)
+            }
+          />
         ) : (
-          <input className="hub-input" placeholder="ID" required {...bind("targetId")} />
+          <input
+            className="hub-input"
+            placeholder="ID"
+            required
+            {...bind("targetId")}
+          />
         )}
-        <button type="submit" className="hub-button primary" disabled={busy}>Follow</button>
+
+        <button
+          type="submit"
+          className="hub-button primary"
+          disabled={busy}
+        >
+          Follow
+        </button>
       </form>
 
       <Err e={error || list.error} />
@@ -711,13 +1438,32 @@ function FollowsTab({ games, onChange }) {
       {groups.map(([kind, label, ids]) => (
         <div key={kind}>
           <h3>{label}</h3>
+
           {ids.length === 0 ? (
             <p>Nothing followed yet.</p>
           ) : (
             <div className="hub-pills">
               {ids.map((id) => (
-                <button key={id} type="button" disabled={busy} title="Unfollow" onClick={() => act(() => api(`/follows/${kind}/${encodeURIComponent(id)}`, { method: "DELETE" }))}>
-                  {kind === "game" ? games.find((g) => g.id === id)?.label || id : id} ×
+                <button
+                  key={id}
+                  type="button"
+                  disabled={busy}
+                  title="Unfollow"
+                  onClick={() =>
+                    act(() =>
+                      api(
+                        `/follows/${kind}/${encodeURIComponent(id)}`,
+                        {
+                          method: "DELETE",
+                        }
+                      )
+                    )
+                  }
+                >
+                  {kind === "game"
+                    ? games.find((game) => game.id === id)?.label || id
+                    : id}{" "}
+                  ×
                 </button>
               ))}
             </div>
@@ -729,66 +1475,638 @@ function FollowsTab({ games, onChange }) {
 }
 
 /* =========================================================
-   MESSAGES
-   ========================================================= */
+   CHAT WINDOW
+========================================================= */
 
-function MessagesTab({ meId, onChange }) {
-  const list = useApi("/channels");
-  const { act, error, busy } = useAct(async () => {
-    list.reload();
-    onChange();
-  });
-  const [f, bind, reset] = useFields({ type: "dm", userId: "", name: "", members: "" });
+function ChannelChat({ channel, meId, onClose, onChanged }) {
+  const channelId = encodeURIComponent(channel.id);
 
-  const channels = list.data?.channels || [];
+  // Expected backend endpoint:
+  // GET /channels/:id/messages
+  const messagesPath = `/channels/${channelId}/messages`;
 
-  const start = (event) => {
+  const messages = useApi(messagesPath);
+
+  const [content, setContent] = useState("");
+  const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState("");
+
+  const rawMessages =
+    messages.data?.messages ||
+    messages.data?.items ||
+    messages.data?.data?.messages ||
+    [];
+
+  const rows = Array.isArray(rawMessages) ? rawMessages : [];
+
+  const send = async (event) => {
     event.preventDefault();
-    act(async () => {
-      await api("/channels", {
+
+    const text = content.trim();
+
+    if (!text || sending) return;
+
+    setSending(true);
+    setSendError("");
+
+    try {
+      // Expected backend endpoint:
+      // POST /channels/:id/messages
+      // Body: { content: "Hello!" }
+      await api(`/channels/${channelId}/messages`, {
         method: "POST",
-        body: f.type === "dm" ? { type: "dm", userId: f.userId.trim() } : { type: "group", name: f.name, members: csv(f.members) },
+        body: { content: text },
       });
-      reset();
+
+      setContent("");
+
+      // Reload the conversation after a successful send.
+      messages.reload();
+
+      // Refresh unread counts and conversation previews.
+      onChanged?.();
+    } catch (error) {
+      setSendError(error.message);
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const messageAuthorId = (message) =>
+    message.authorId ??
+    message.userId ??
+    message.senderId ??
+    message.author?.id ??
+    message.user?.id ??
+    message.sender?.id ??
+    null;
+
+  const messageAuthorName = (message) =>
+    message.authorName ||
+    message.username ||
+    message.senderName ||
+    message.author?.username ||
+    message.user?.username ||
+    message.sender?.username ||
+    "Player";
+
+  const messageText = (message) =>
+    message.content ??
+    message.text ??
+    message.message ??
+    "";
+
+  const messageDate = (message) => {
+    const value =
+      message.createdAt ||
+      message.sentAt ||
+      message.timestamp ||
+      message.at;
+
+    if (!value) return "";
+
+    const date = new Date(value);
+
+    if (Number.isNaN(date.getTime())) return "";
+
+    return date.toLocaleString([], {
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
     });
   };
 
   return (
-    <div className="community-panel">
+    <section className="system-card fades-chat-window">
+      <div className="fades-chat-header">
+        <div className="fades-chat-heading">
+          <span className="fades-chat-avatar">
+            {(channel.name || "C").slice(0, 1).toUpperCase()}
+          </span>
+
+          <div>
+            <strong className="card-title">
+              {channel.name || "Conversation"}
+            </strong>
+
+            <span className="card-sub">
+              {channel.type === "group"
+                ? "Group conversation"
+                : "Direct message"}
+            </span>
+          </div>
+        </div>
+
+        <Btn onClick={onClose}>Close chat</Btn>
+      </div>
+
+      <div
+        className="fades-chat-messages"
+        aria-label="Conversation messages"
+        aria-live="polite"
+      >
+        {messages.loading && !messages.data && (
+          <div className="fades-chat-state">
+            <div className="skeleton-card" />
+            <p>Loading messages...</p>
+          </div>
+        )}
+
+        {messages.error && (
+          <div className="fades-chat-state">
+            <p className="form-error">
+              Could not load this conversation: {messages.error}
+            </p>
+
+            <Btn onClick={messages.reload}>Try again</Btn>
+          </div>
+        )}
+
+        {!messages.loading &&
+          !messages.error &&
+          messages.data &&
+          rows.length === 0 && (
+            <div className="fades-chat-state">
+              <div className="fades-chat-empty-icon">
+                <svg
+                  width="28"
+                  height="28"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8v.5Z" />
+                </svg>
+              </div>
+
+              <strong>No messages yet</strong>
+
+              <p>
+                Say hello and start the conversation.
+              </p>
+            </div>
+          )}
+
+        {rows.map((message, index) => {
+          const authorId = messageAuthorId(message);
+
+          const mine =
+            authorId != null &&
+            String(authorId) === String(meId);
+
+          const text = messageText(message);
+
+          const messageId =
+            message.id ??
+            message._id ??
+            `${message.createdAt || message.at || "message"}-${index}`;
+
+          return (
+            <div
+              key={messageId}
+              className={`fades-chat-message-row ${
+                mine ? "mine" : "theirs"
+              }`}
+            >
+              <div className="fades-chat-message">
+                {!mine && (
+                  <span className="fades-chat-author">
+                    {messageAuthorName(message)}
+                  </span>
+                )}
+
+                {text ? (
+                  <p>{text}</p>
+                ) : (
+                  <p className="fades-chat-attachment">
+                    {message.attachment
+                      ? "Attachment"
+                      : "(No message text)"}
+                  </p>
+                )}
+
+                <span className="fades-chat-time">
+                  {messageDate(message)}
+                </span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <Err e={sendError} />
+
+      <form className="fades-chat-composer" onSubmit={send}>
+        <textarea
+          className="hub-input fades-chat-input"
+          placeholder="Write a message..."
+          aria-label="Write a message"
+          value={content}
+          maxLength={10000}
+          rows={2}
+          onChange={(event) => setContent(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && !event.shiftKey) {
+              event.preventDefault();
+
+              if (content.trim() && !sending) {
+                event.currentTarget.form?.requestSubmit();
+              }
+            }
+          }}
+        />
+
+        <button
+          type="submit"
+          className="hub-button primary fades-chat-send"
+          disabled={sending || !content.trim()}
+        >
+          {sending ? "Sending..." : "Send"}
+        </button>
+      </form>
+
+      <p className="fades-chat-hint">
+        Press Enter to send · Shift + Enter for a new line
+      </p>
+    </section>
+  );
+}
+
+/* =========================================================
+   MESSAGES
+========================================================= */
+
+function MessagesTab({ meId, onChange }) {
+  const list = useApi("/channels");
+
+  const [f, bind, reset] = useFields({
+    type: "dm",
+    userId: "",
+    name: "",
+    members: "",
+  });
+
+  const [activeId, setActiveId] = useState(null);
+  const [createdChannel, setCreatedChannel] = useState(null);
+  const [startError, setStartError] = useState("");
+  const [starting, setStarting] = useState(false);
+
+  const channels = list.data?.channels || [];
+
+  const activeChannel =
+    channels.find(
+      (channel) => String(channel.id) === String(activeId)
+    ) ||
+    (createdChannel &&
+    String(createdChannel.id) === String(activeId)
+      ? createdChannel
+      : null);
+
+  const refreshAll = useCallback(() => {
+    list.reload();
+    onChange?.();
+  }, [list.reload, onChange]);
+
+  const openChat = async (channel) => {
+    setActiveId(String(channel.id));
+    setCreatedChannel(null);
+    setStartError("");
+
+    // Mark the conversation as read when opening it.
+    try {
+      await api(
+        `/channels/${encodeURIComponent(channel.id)}/read`,
+        {
+          method: "POST",
+        }
+      );
+
+      refreshAll();
+    } catch {
+      // Opening the chat should still work if marking it read fails.
+    }
+  };
+
+  const start = async (event) => {
+    event.preventDefault();
+
+    setStarting(true);
+    setStartError("");
+
+    try {
+      const payload =
+        f.type === "dm"
+          ? {
+              type: "dm",
+              userId: f.userId.trim(),
+            }
+          : {
+              type: "group",
+              name: f.name.trim(),
+              members: csv(f.members),
+            };
+
+      if (f.type === "dm" && !payload.userId) {
+        throw new Error("Enter the player's ID.");
+      }
+
+      if (f.type === "group" && !payload.members.length) {
+        throw new Error("Add at least one player to the group.");
+      }
+
+      const result = await api("/channels", {
+        method: "POST",
+        body: payload,
+      });
+
+      /*
+       * Accept common response formats:
+       * { id: "..." }
+       * { channel: { id: "..." } }
+       * { conversation: { id: "..." } }
+       */
+      const created =
+        result?.channel ||
+        result?.conversation ||
+        result;
+
+      const newId =
+        created?.id ??
+        created?._id ??
+        result?.channelId ??
+        result?.conversationId;
+
+      if (newId != null) {
+        setActiveId(String(newId));
+
+        if (created && (created.id != null || created._id != null)) {
+          setCreatedChannel({
+            ...created,
+            id: created.id ?? created._id,
+          });
+        } else {
+          setCreatedChannel(null);
+        }
+      }
+
+      reset();
+
+      refreshAll();
+
+      /*
+       * If the API returns the new channel ID, the chat opens
+       * immediately. If it doesn't, the new conversation still
+       * appears after the channel list refreshes.
+       */
+    } catch (error) {
+      setStartError(error.message);
+    } finally {
+      setStarting(false);
+    }
+  };
+
+  const markRead = async (channel) => {
+    try {
+      await api(
+        `/channels/${encodeURIComponent(channel.id)}/read`,
+        {
+          method: "POST",
+        }
+      );
+
+      refreshAll();
+    } catch (error) {
+      setStartError(error.message);
+    }
+  };
+
+  const leaveGroup = async (channel) => {
+    const confirmed = confirm(
+      `Leave "${channel.name || "this group"}"?`
+    );
+
+    if (!confirmed) return;
+
+    try {
+      await api(
+        `/channels/${encodeURIComponent(channel.id)}/members/${encodeURIComponent(meId)}`,
+        {
+          method: "DELETE",
+        }
+      );
+
+      if (String(activeId) === String(channel.id)) {
+        setActiveId(null);
+        setCreatedChannel(null);
+      }
+
+      refreshAll();
+    } catch (error) {
+      setStartError(error.message);
+    }
+  };
+
+  return (
+    <div className="community-panel fades-messages-panel">
+      <div className="fades-messages-intro">
+        <div>
+          <h2>Messages</h2>
+          <p>
+            Chat privately with players or create a group for your squad.
+          </p>
+        </div>
+
+        <span className="fades-messages-count">
+          {channels.length}{" "}
+          {channels.length === 1 ? "conversation" : "conversations"}
+        </span>
+      </div>
+
       <form className="form-card" onSubmit={start}>
-        <select className="hub-input" {...bind("type")}>
+        <div className="fades-chat-form-heading">
+          <strong>Start a conversation</strong>
+          <span>Choose who you want to talk to.</span>
+        </div>
+
+        <select
+          className="hub-input"
+          aria-label="Conversation type"
+          {...bind("type")}
+        >
           <option value="dm">Direct message</option>
           <option value="group">Group chat</option>
         </select>
+
         {f.type === "dm" ? (
-          <input className="hub-input" placeholder="Player id" required {...bind("userId")} />
+          <input
+            className="hub-input"
+            placeholder="Player ID"
+            aria-label="Player ID"
+            required
+            value={f.userId}
+            onChange={bind("userId").onChange}
+          />
         ) : (
           <>
-            <input className="hub-input" placeholder="Group name" maxLength={50} required {...bind("name")} />
-            <input className="hub-input" placeholder="Player ids, comma separated" required {...bind("members")} />
+            <input
+              className="hub-input"
+              placeholder="Group name"
+              aria-label="Group name"
+              maxLength={50}
+              required
+              value={f.name}
+              onChange={bind("name").onChange}
+            />
+
+            <input
+              className="hub-input"
+              placeholder="Player IDs, comma separated"
+              aria-label="Group member IDs"
+              required
+              value={f.members}
+              onChange={bind("members").onChange}
+            />
           </>
         )}
-        <button type="submit" className="hub-button primary" disabled={busy}>Start chat</button>
+
+        <button
+          type="submit"
+          className="hub-button primary"
+          disabled={starting}
+        >
+          {starting ? "Starting chat..." : "Start chat"}
+        </button>
+
+        <Err e={startError} />
       </form>
 
-      <Err e={error} />
-      <Loading list={list} />
+      {activeChannel && (
+        <ChannelChat
+          key={String(activeChannel.id)}
+          channel={activeChannel}
+          meId={meId}
+          onClose={() => {
+            setActiveId(null);
+            setCreatedChannel(null);
+            setStartError("");
+          }}
+          onChanged={refreshAll}
+        />
+      )}
 
-      {list.data && channels.length === 0 && <Empty title="No conversations" body="Start a chat above, or join a team." />}
+      <div className="fades-conversations-heading">
+        <div>
+          <h3>Your conversations</h3>
+          <p>Select a conversation to open its messages.</p>
+        </div>
+
+        <Btn onClick={list.reload}>Refresh</Btn>
+      </div>
+
+      <Err e={list.error} />
+
+      {list.loading && !list.data && (
+        <div className="skeleton-card" />
+      )}
+
+      {list.data && channels.length === 0 && (
+        <Empty
+          title="No conversations yet"
+          body="Start a direct message or create a group above. Your chats will appear here."
+        />
+      )}
 
       <div className="system-grid">
-        {channels.map((c) => (
-          <Card
-            key={c.id}
-            top={c.type}
-            pill={c.unread ? `${c.unread} unread` : ""}
-            title={c.name}
-            sub={c.lastMessage ? `${c.lastMessage.authorName}: ${c.lastMessage.content || "(attachment)"}` : "No messages yet"}
-          >
-            {c.unread > 0 && <Btn disabled={busy} onClick={() => act(() => api(`/channels/${encodeURIComponent(c.id)}/read`, { method: "POST" }))}>Mark read</Btn>}
-            {c.type === "group" && <Btn disabled={busy} onClick={() => act(() => api(`/channels/${encodeURIComponent(c.id)}/members/${meId}`, { method: "DELETE" }))}>Leave</Btn>}
-          </Card>
-        ))}
+        {channels.map((channel) => {
+          const selected =
+            String(activeId) === String(channel.id);
+
+          const preview = channel.lastMessage
+            ? [
+                channel.lastMessage.authorName,
+                channel.lastMessage.content || "(attachment)",
+              ]
+                .filter(Boolean)
+                .join(": ")
+            : "No messages yet. Start the conversation.";
+
+          return (
+            <div
+              key={channel.id}
+              className={`system-card community-card fades-conversation-card ${
+                selected ? "active" : ""
+              }`}
+            >
+              <button
+                type="button"
+                className="fades-conversation-open"
+                aria-label={`Open chat with ${channel.name || "conversation"}`}
+                onClick={() => openChat(channel)}
+              >
+                <div className="fades-conversation-top">
+                  <span className="fades-chat-avatar">
+                    {(channel.name || "C")
+                      .slice(0, 1)
+                      .toUpperCase()}
+                  </span>
+
+                  <div className="fades-conversation-info">
+                    <strong className="card-title">
+                      {channel.name || "Conversation"}
+                    </strong>
+
+                    <span className="card-sub">
+                      {channel.type === "group"
+                        ? "Group chat"
+                        : "Direct message"}
+                    </span>
+                  </div>
+
+                  {Number(channel.unread) > 0 && (
+                    <span className="fades-unread-badge">
+                      {channel.unread}
+                    </span>
+                  )}
+                </div>
+
+                <span className="fades-conversation-preview">
+                  {preview}
+                </span>
+
+                <span className="fades-conversation-open-label">
+                  {selected ? "Currently open" : "Open conversation"}
+                  <span aria-hidden="true">→</span>
+                </span>
+              </button>
+
+              <div className="card-actions">
+                <Btn
+                  primary
+                  onClick={() => openChat(channel)}
+                >
+                  Open chat
+                </Btn>
+
+                {Number(channel.unread) > 0 && (
+                  <Btn onClick={() => markRead(channel)}>
+                    Mark read
+                  </Btn>
+                )}
+
+                {channel.type === "group" && (
+                  <Btn onClick={() => leaveGroup(channel)}>
+                    Leave group
+                  </Btn>
+                )}
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -796,7 +2114,7 @@ function MessagesTab({ meId, onChange }) {
 
 /* =========================================================
    PREDICTIONS
-   ========================================================= */
+========================================================= */
 
 function PredictionsTab({ games }) {
   const list = useApi("/predictions/me");
@@ -805,16 +2123,25 @@ function PredictionsTab({ games }) {
   return (
     <div className="community-panel">
       <Loading list={list} />
-      {list.data && rows.length === 0 && <Empty title="No predictions yet" body="Pick winners on upcoming matches in the hub." />}
+
+      {list.data && rows.length === 0 && (
+        <Empty
+          title="No predictions yet"
+          body="Pick winners on upcoming matches in the hub."
+        />
+      )}
 
       <div className="system-grid">
-        {rows.map((p) => (
+        {rows.map((prediction) => (
           <Card
-            key={p.id}
-            top={games.find((g) => g.id === p.game)?.label || p.game}
-            pill={p.status}
-            title={`Match ${p.matchId}`}
-            sub={`Picked team ${p.teamId} · ${ago(p.at)}`}
+            key={prediction.id}
+            top={
+              games.find((game) => game.id === prediction.game)?.label ||
+              prediction.game
+            }
+            pill={prediction.status}
+            title={`Match ${prediction.matchId}`}
+            sub={`Picked team ${prediction.teamId} · ${ago(prediction.at)}`}
           />
         ))}
       </div>
@@ -824,23 +2151,45 @@ function PredictionsTab({ games }) {
 
 /* =========================================================
    ADMIN: REPORTS
-   ========================================================= */
+========================================================= */
 
 function ReportsTab() {
   const list = useApi("/admin/reports?resolved=0");
   const { act, error, busy } = useAct(list.reload);
+
   const reports = list.data?.reports || [];
 
   return (
     <div className="community-panel">
       <Err e={error} />
       <Loading list={list} />
-      {list.data && reports.length === 0 && <Empty title="All clear" body="No open reports." />}
+
+      {list.data && reports.length === 0 && (
+        <Empty title="All clear" body="No open reports." />
+      )}
 
       <div className="stack">
-        {reports.map((r) => (
-          <Card key={r.id} top={r.kind} pill={ago(r.createdAt)} title={r.reason} sub={`Target ${r.targetId} · reported by ${r.reporterId}`}>
-            <Btn primary disabled={busy} onClick={() => act(() => api(`/admin/reports/${r.id}/resolve`, { method: "POST" }))}>Resolve</Btn>
+        {reports.map((report) => (
+          <Card
+            key={report.id}
+            top={report.kind}
+            pill={ago(report.createdAt)}
+            title={report.reason}
+            sub={`Target ${report.targetId} · reported by ${report.reporterId}`}
+          >
+            <Btn
+              primary
+              disabled={busy}
+              onClick={() =>
+                act(() =>
+                  api(`/admin/reports/${report.id}/resolve`, {
+                    method: "POST",
+                  })
+                )
+              }
+            >
+              Resolve
+            </Btn>
           </Card>
         ))}
       </div>
@@ -849,32 +2198,31 @@ function ReportsTab() {
 }
 
 /* =========================================================
-   PAGE
-   ========================================================= */
-
-/* =========================================================
    ACCOUNT
-   ========================================================= */
+========================================================= */
 
 function AccountTab({ session, setTab }) {
   const { user, profile, admin, teams } = session.me;
+
   const [copied, setCopied] = useState(false);
   const { act, error, busy } = useAct();
+
   const links = Object.entries(profile?.links || {});
 
-  const copy = () => {
+  const copy = async () => {
     try {
-      navigator.clipboard.writeText(user.id);
+      await navigator.clipboard.writeText(user.id);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {
-      /* clipboard blocked */
+      /* Clipboard blocked */
     }
   };
 
   const exportData = () =>
     act(async () => {
       const safe = (path) => api(path).catch(() => null);
+
       const [predictions, follows, posts] = await Promise.all([
         safe("/predictions/me"),
         safe("/follows"),
@@ -882,11 +2230,31 @@ function AccountTab({ session, setTab }) {
       ]);
 
       const blob = new Blob(
-        [JSON.stringify({ exportedAt: new Date().toISOString(), account: user, profile, teams, predictions: predictions?.predictions, follows, posts: posts?.posts }, null, 2)],
+        [
+          JSON.stringify(
+            {
+              exportedAt: new Date().toISOString(),
+              account: user,
+              profile,
+              teams,
+              predictions: predictions?.predictions,
+              follows,
+              posts: posts?.posts,
+            },
+            null,
+            2
+          ),
+        ],
         { type: "application/json" }
       );
+
       const url = URL.createObjectURL(blob);
-      Object.assign(document.createElement("a"), { href: url, download: "fades-gaming-data.json" }).click();
+      const link = document.createElement("a");
+
+      link.href = url;
+      link.download = "fades-gaming-data.json";
+      link.click();
+
       URL.revokeObjectURL(url);
     });
 
@@ -895,7 +2263,12 @@ function AccountTab({ session, setTab }) {
     ["Country", profile?.country || "Not set"],
     ["Platforms", profile?.platforms?.join(", ") || "None"],
     ["Role", admin ? "Moderator" : "Player"],
-    ["Joined", profile?.createdAt ? new Date(profile.createdAt).toLocaleDateString() : "Recently"],
+    [
+      "Joined",
+      profile?.createdAt
+        ? new Date(profile.createdAt).toLocaleDateString()
+        : "Recently",
+    ],
   ];
 
   return (
@@ -903,20 +2276,36 @@ function AccountTab({ session, setTab }) {
       <div className="system-card">
         <div className="account-id">
           <Avatar user={user} sm />
+
           <div>
             <strong className="card-title">{user.username}</strong>
-            <span className="card-sub">{teams.length} {teams.length === 1 ? "team" : "teams"} · {session.me.follows} following</span>
+
+            <span className="card-sub">
+              {teams.length} {teams.length === 1 ? "team" : "teams"} ·{" "}
+              {session.me.follows} following
+            </span>
           </div>
         </div>
+
         <dl className="kv">
           <div>
             <dt>User ID</dt>
-            <dd>{user.id} <button type="button" className="chip" onClick={copy}>{copied ? "Copied" : "Copy"}</button></dd>
+            <dd>
+              {user.id}{" "}
+              <button type="button" className="chip" onClick={copy}>
+                {copied ? "Copied" : "Copy"}
+              </button>
+            </dd>
           </div>
-          {rows.map(([k, v]) => (
-            <div key={k}><dt>{k}</dt><dd>{v}</dd></div>
+
+          {rows.map(([key, value]) => (
+            <div key={key}>
+              <dt>{key}</dt>
+              <dd>{value}</dd>
+            </div>
           ))}
         </dl>
+
         <div className="card-actions">
           <Btn onClick={() => setTab("profile")}>Edit profile</Btn>
         </div>
@@ -924,34 +2313,58 @@ function AccountTab({ session, setTab }) {
 
       <div className="system-card">
         <strong className="card-title">Fades account</strong>
-        <span className="card-sub">Your email, password and sign-in security are managed on your main Fades account.</span>
+
+        <span className="card-sub">
+          Your email, password and sign-in security are managed on your main
+          Fades account.
+        </span>
+
         <div className="card-actions">
-          <a className="hub-button primary" href={SIGN_IN_URL}>Manage Fades account</a>
+          <a className="hub-button primary" href={SIGN_IN_URL}>
+            Manage Fades account
+          </a>
         </div>
       </div>
 
       <div className="system-card">
         <strong className="card-title">Linked profiles</strong>
+
         {links.length === 0 ? (
-          <span className="card-sub">Add Steam, Discord, Twitch and more so teammates can find you.</span>
+          <span className="card-sub">
+            Add Steam, Discord, Twitch and more so teammates can find you.
+          </span>
         ) : (
           <dl className="kv">
-            {links.map(([k, v]) => (
-              <div key={k}><dt>{k}</dt><dd>{v}</dd></div>
+            {links.map(([key, value]) => (
+              <div key={key}>
+                <dt>{key}</dt>
+                <dd>{value}</dd>
+              </div>
             ))}
           </dl>
         )}
+
         <div className="card-actions">
-          <Btn onClick={() => setTab("profile")}>{links.length ? "Edit links" : "Add links"}</Btn>
+          <Btn onClick={() => setTab("profile")}>
+            {links.length ? "Edit links" : "Add links"}
+          </Btn>
         </div>
       </div>
 
       <div className="system-card">
         <strong className="card-title">Your data</strong>
-        <span className="card-sub">Download your profile, teams, follows, predictions and posts as a JSON file.</span>
+
+        <span className="card-sub">
+          Download your profile, teams, follows, predictions and posts as a
+          JSON file.
+        </span>
+
         <Err e={error} />
+
         <div className="card-actions">
-          <Btn disabled={busy} onClick={exportData}>{busy ? "Preparing..." : "Export my data"}</Btn>
+          <Btn disabled={busy} onClick={exportData}>
+            {busy ? "Preparing..." : "Export my data"}
+          </Btn>
         </div>
       </div>
     </div>
@@ -959,59 +2372,124 @@ function AccountTab({ session, setTab }) {
 }
 
 /* =========================================================
-   SETTINGS (saved in this browser)
-   ========================================================= */
+   SETTINGS
+========================================================= */
 
 const PREFS_KEY = "fades-dashboard-prefs";
-const DEFAULT_PREFS = { density: "comfortable", start: "overview", hubStats: "on" };
+
+const DEFAULT_PREFS = {
+  density: "comfortable",
+  start: "overview",
+  hubStats: "on",
+};
 
 function Seg({ label, value, options, onChange }) {
   return (
     <div className="hub-pills" role="group" aria-label={label}>
-      {options.map(([v, text]) => (
-        <button key={v} type="button" aria-pressed={value === v} onClick={() => onChange(v)}>{text}</button>
+      {options.map(([optionValue, text]) => (
+        <button
+          key={optionValue}
+          type="button"
+          aria-pressed={value === optionValue}
+          onClick={() => onChange(optionValue)}
+        >
+          {text}
+        </button>
       ))}
     </div>
   );
 }
 
 function SettingsTab({ prefs, setPrefs, tabs }) {
-  const set = (key) => (value) => setPrefs((c) => ({ ...c, [key]: value }));
+  const set = (key) => (value) =>
+    setPrefs((current) => ({
+      ...current,
+      [key]: value,
+    }));
 
   return (
     <div className="system-card">
       <div className="pref-row">
-        <div><strong>Density</strong><span>How much space cards and forms take up.</span></div>
-        <Seg label="Density" value={prefs.density} onChange={set("density")} options={[["comfortable", "Comfortable"], ["compact", "Compact"]]} />
+        <div>
+          <strong>Density</strong>
+          <span>How much space cards and forms take up.</span>
+        </div>
+
+        <Seg
+          label="Density"
+          value={prefs.density}
+          onChange={set("density")}
+          options={[
+            ["comfortable", "Comfortable"],
+            ["compact", "Compact"],
+          ]}
+        />
       </div>
 
       <div className="pref-row">
-        <div><strong>Open on</strong><span>The section you land on when you open the dashboard.</span></div>
-        <select className="hub-input" style={{ width: "auto" }} value={prefs.start} onChange={(e) => set("start")(e.target.value)}>
-          {tabs.filter((id) => id !== "reports").map((id) => (
-            <option key={id} value={id}>{COPY[id][0]}</option>
-          ))}
+        <div>
+          <strong>Open on</strong>
+          <span>
+            The section you land on when you open the dashboard.
+          </span>
+        </div>
+
+        <select
+          className="hub-input"
+          style={{ width: "auto" }}
+          value={prefs.start}
+          onChange={(event) => set("start")(event.target.value)}
+        >
+          {tabs
+            .filter((id) => id !== "reports")
+            .map((id) => (
+              <option key={id} value={id}>
+                {COPY[id][0]}
+              </option>
+            ))}
         </select>
       </div>
 
       <div className="pref-row">
-        <div><strong>Hub stats</strong><span>Show player, party, tournament and post totals on the overview.</span></div>
-        <Seg label="Hub stats" value={prefs.hubStats} onChange={set("hubStats")} options={[["on", "Show"], ["off", "Hide"]]} />
+        <div>
+          <strong>Hub stats</strong>
+          <span>
+            Show player, party, tournament and post totals on the overview.
+          </span>
+        </div>
+
+        <Seg
+          label="Hub stats"
+          value={prefs.hubStats}
+          onChange={set("hubStats")}
+          options={[
+            ["on", "Show"],
+            ["off", "Hide"],
+          ]}
+        />
       </div>
 
       <div className="pref-row">
-        <div><strong>Reset</strong><span>These settings are saved in this browser only.</span></div>
-        <Btn onClick={() => setPrefs(DEFAULT_PREFS)}>Reset to defaults</Btn>
+        <div>
+          <strong>Reset</strong>
+          <span>These settings are saved in this browser only.</span>
+        </div>
+
+        <Btn onClick={() => setPrefs(DEFAULT_PREFS)}>
+          Reset to defaults
+        </Btn>
       </div>
     </div>
   );
 }
 
 /* =========================================================
-   PAGE
-   ========================================================= */
+   PAGE CONFIGURATION
+========================================================= */
 
-const HUB_URL = process.env.NEXT_PUBLIC_HUB_URL || "https://gaming.fades.lol";
+const HUB_URL =
+  process.env.NEXT_PUBLIC_HUB_URL || "https://gaming.fades.lol";
+
 const LOGO = process.env.NEXT_PUBLIC_LOGO || "/logo.png";
 
 const COPY = {
@@ -1032,14 +2510,34 @@ const COPY = {
 
 const GROUPS = [
   ["Dashboard", ["overview"]],
-  ["Community", ["teams", "parties", "tournaments", "posts", "games", "follows", "messages", "predictions"]],
+  [
+    "Community",
+    [
+      "teams",
+      "parties",
+      "tournaments",
+      "posts",
+      "games",
+      "follows",
+      "messages",
+      "predictions",
+    ],
+  ],
   ["Account", ["profile", "account", "settings"]],
 ];
+
+/* =========================================================
+   AVATAR + BRAND
+========================================================= */
 
 function Avatar({ user, sm }) {
   return (
     <span className={`db-avatar ${sm ? "sm" : ""}`}>
-      {user?.avatar ? <img src={user.avatar} alt="" /> : (user?.username || "F").slice(0, 1).toUpperCase()}
+      {user?.avatar ? (
+        <img src={user.avatar} alt="" />
+      ) : (
+        (user?.username || "F").slice(0, 1).toUpperCase()
+      )}
     </span>
   );
 }
@@ -1049,33 +2547,74 @@ function Brand() {
 
   return (
     <a className="db-brand" href={HUB_URL}>
-      <span className="db-logo">{bad ? <b>F</b> : <img src={LOGO} alt="" onError={() => setBad(true)} />}</span>
-      <span><strong>Fades</strong><em>Dashboard</em></span>
+      <span className="db-logo">
+        {bad ? (
+          <b>F</b>
+        ) : (
+          <img
+            src={LOGO}
+            alt=""
+            onError={() => setBad(true)}
+          />
+        )}
+      </span>
+
+      <span>
+        <strong>Fades</strong>
+        <em>Dashboard</em>
+      </span>
     </a>
   );
 }
 
 const SearchIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
+  <svg
+    width="16"
+    height="16"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    aria-hidden="true"
+  >
+    <circle cx="11" cy="11" r="7" />
+    <path d="m20 20-3.5-3.5" />
+  </svg>
 );
+
+/* =========================================================
+   MAIN DASHBOARD
+========================================================= */
 
 export default function DashboardPage() {
   const session = useSession();
+
   const [tab, setTab] = useState("overview");
   const [query, setQuery] = useState("");
   const [menu, setMenu] = useState(false);
   const [prefs, setPrefs] = useState(DEFAULT_PREFS);
+
   const gameList = useApi("/games");
 
   useEffect(() => {
     try {
-      const saved = JSON.parse(localStorage.getItem(PREFS_KEY) || "null");
+      const saved = JSON.parse(
+        localStorage.getItem(PREFS_KEY) || "null"
+      );
+
       if (saved) {
-        setPrefs({ ...DEFAULT_PREFS, ...saved });
-        if (COPY[saved.start] && saved.start !== "reports") setTab(saved.start);
+        setPrefs({
+          ...DEFAULT_PREFS,
+          ...saved,
+        });
+
+        if (COPY[saved.start] && saved.start !== "reports") {
+          setTab(saved.start);
+        }
       }
     } catch {
-      /* storage unavailable */
+      /* Storage unavailable */
     }
   }, []);
 
@@ -1083,25 +2622,42 @@ export default function DashboardPage() {
     try {
       localStorage.setItem(PREFS_KEY, JSON.stringify(prefs));
     } catch {
-      /* storage unavailable */
+      /* Storage unavailable */
     }
   }, [prefs]);
 
   const allGames = gameList.data?.games || [];
-  const games = allGames.map((g) => ({ id: g.id, label: g.label }));
+
+  const games = allGames.map((game) => ({
+    id: game.id,
+    label: game.label,
+  }));
 
   if (session.loading || !session.signedIn) {
     return (
       <div className="db" data-density={prefs.density}>
         <div className="db-center">
           <Brand />
+
           {session.loading ? (
-            <div className="skeleton-card" style={{ width: "min(420px, 100%)" }} />
+            <div
+              className="skeleton-card"
+              style={{ width: "min(420px, 100%)" }}
+            />
           ) : (
-            <div className="systems-empty" style={{ width: "min(420px, 100%)" }}>
+            <div
+              className="systems-empty"
+              style={{ width: "min(420px, 100%)" }}
+            >
               <h3>Sign in to see your dashboard</h3>
-              <p>Your teams, parties, tournaments and posts live here.</p>
-              <a className="hub-button primary" href={SIGN_IN_URL}>Sign in</a>
+
+              <p>
+                Your teams, parties, tournaments and posts live here.
+              </p>
+
+              <a className="hub-button primary" href={SIGN_IN_URL}>
+                Sign in
+              </a>
             </div>
           )}
         </div>
@@ -1110,10 +2666,17 @@ export default function DashboardPage() {
   }
 
   const { user, profile, admin, unread } = session.me;
+
   const meId = user.id;
-  const groups = [...GROUPS, ...(admin ? [["Moderation", ["reports"]]] : [])];
+
+  const groups = [
+    ...GROUPS,
+    ...(admin ? [["Moderation", ["reports"]]] : []),
+  ];
+
   const allTabs = groups.flatMap(([, ids]) => ids);
-  const [title, blurb] = COPY[tab];
+
+  const [title, blurb] = COPY[tab] || COPY.overview;
 
   const go = (id) => {
     setTab(id);
@@ -1123,7 +2686,14 @@ export default function DashboardPage() {
   };
 
   const q = query.trim().toLowerCase();
-  const matches = q ? allTabs.filter((id) => `${COPY[id][0]} ${COPY[id][1]}`.toLowerCase().includes(q)) : [];
+
+  const matches = q
+    ? allTabs.filter((id) =>
+        `${COPY[id][0]} ${COPY[id][1]}`
+          .toLowerCase()
+          .includes(q)
+      )
+    : [];
 
   return (
     <div className="db" data-density={prefs.density}>
@@ -1134,10 +2704,20 @@ export default function DashboardPage() {
           {groups.map(([label, ids]) => (
             <div className="db-group" key={label}>
               <p>{label}</p>
+
               {ids.map((id) => (
-                <button key={id} type="button" className="db-item" aria-current={tab === id ? "page" : undefined} onClick={() => go(id)}>
+                <button
+                  key={id}
+                  type="button"
+                  className="db-item"
+                  aria-current={tab === id ? "page" : undefined}
+                  onClick={() => go(id)}
+                >
                   {COPY[id][0]}
-                  {id === "messages" && unread > 0 && <span className="db-badge">{unread}</span>}
+
+                  {id === "messages" && unread > 0 && (
+                    <span className="db-badge">{unread}</span>
+                  )}
                 </button>
               ))}
             </div>
@@ -1146,6 +2726,7 @@ export default function DashboardPage() {
 
         <div className="db-user">
           <Avatar user={user} />
+
           <div>
             <strong>{profile?.gamertag || user.username}</strong>
             <span>{admin ? "Moderator" : "Player"}</span>
@@ -1153,31 +2734,65 @@ export default function DashboardPage() {
         </div>
       </aside>
 
-      {menu && <div className="db-scrim" onClick={() => setMenu(false)} />}
+      {menu && (
+        <div
+          className="db-scrim"
+          onClick={() => setMenu(false)}
+        />
+      )}
 
       <div className="db-main">
         <header className="db-top">
-          <button type="button" className="db-menu" aria-label="Open menu" onClick={() => setMenu(true)}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
+          <button
+            type="button"
+            className="db-menu"
+            aria-label="Open menu"
+            onClick={() => setMenu(true)}
+          >
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+            >
+              <path d="M4 7h16M4 12h16M4 17h16" />
+            </svg>
           </button>
 
           <div className="db-search">
             <SearchIcon />
+
             <input
               value={query}
               placeholder="Search sections..."
               aria-label="Search dashboard sections"
-              onChange={(e) => setQuery(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && matches[0]) go(matches[0]);
-                if (e.key === "Escape") setQuery("");
+              onChange={(event) => setQuery(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && matches[0]) {
+                  go(matches[0]);
+                }
+
+                if (event.key === "Escape") {
+                  setQuery("");
+                }
               }}
             />
+
             {q && (
               <div className="db-results">
                 {matches.length ? (
                   matches.map((id) => (
-                    <button key={id} type="button" onClick={() => go(id)}>{COPY[id][0]}<small>{COPY[id][1]}</small></button>
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => go(id)}
+                    >
+                      {COPY[id][0]}
+                      <small>{COPY[id][1]}</small>
+                    </button>
                   ))
                 ) : (
                   <p>No sections match that.</p>
@@ -1187,30 +2802,89 @@ export default function DashboardPage() {
           </div>
 
           <div className="db-top-right">
-            <a className="hub-button" href={HUB_URL}>Back to hub</a>
+            <a className="hub-button" href={HUB_URL}>
+              Back to hub
+            </a>
           </div>
         </header>
 
         <main className="db-content">
           <div className="db-head">
-            <span>{groups.find(([, ids]) => ids.includes(tab))?.[0]}</span>
+            <span>
+              {groups.find(([, ids]) => ids.includes(tab))?.[0]}
+            </span>
+
             <h1>{title}</h1>
             <p>{blurb}</p>
           </div>
 
           <div className="db-section">
-            {tab === "overview" && <Overview session={session} setTab={go} prefs={prefs} />}
-            {tab === "teams" && <TeamsTab games={games} session={session} />}
-            {tab === "parties" && <PartiesTab games={games} meId={meId} />}
-            {tab === "tournaments" && <TournamentsTab games={games} meId={meId} />}
-            {tab === "posts" && <PostsTab games={games} meId={meId} />}
-            {tab === "games" && <GamesTab allGames={allGames} meId={meId} reloadGames={gameList.reload} />}
-            {tab === "follows" && <FollowsTab games={games} onChange={session.refresh} />}
-            {tab === "messages" && <MessagesTab meId={meId} onChange={session.refresh} />}
-            {tab === "predictions" && <PredictionsTab games={games} />}
-            {tab === "profile" && <ProfileTab onSaved={session.refresh} />}
-            {tab === "account" && <AccountTab session={session} setTab={go} />}
-            {tab === "settings" && <SettingsTab prefs={prefs} setPrefs={setPrefs} tabs={allTabs} />}
+            {tab === "overview" && (
+              <Overview
+                session={session}
+                setTab={go}
+                prefs={prefs}
+              />
+            )}
+
+            {tab === "teams" && (
+              <TeamsTab games={games} session={session} />
+            )}
+
+            {tab === "parties" && (
+              <PartiesTab games={games} meId={meId} />
+            )}
+
+            {tab === "tournaments" && (
+              <TournamentsTab games={games} meId={meId} />
+            )}
+
+            {tab === "posts" && (
+              <PostsTab games={games} meId={meId} />
+            )}
+
+            {tab === "games" && (
+              <GamesTab
+                allGames={allGames}
+                meId={meId}
+                reloadGames={gameList.reload}
+              />
+            )}
+
+            {tab === "follows" && (
+              <FollowsTab
+                games={games}
+                onChange={session.refresh}
+              />
+            )}
+
+            {tab === "messages" && (
+              <MessagesTab
+                meId={meId}
+                onChange={session.refresh}
+              />
+            )}
+
+            {tab === "predictions" && (
+              <PredictionsTab games={games} />
+            )}
+
+            {tab === "profile" && (
+              <ProfileTab onSaved={session.refresh} />
+            )}
+
+            {tab === "account" && (
+              <AccountTab session={session} setTab={go} />
+            )}
+
+            {tab === "settings" && (
+              <SettingsTab
+                prefs={prefs}
+                setPrefs={setPrefs}
+                tabs={allTabs}
+              />
+            )}
+
             {tab === "reports" && admin && <ReportsTab />}
           </div>
         </main>
