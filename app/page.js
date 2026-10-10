@@ -2,6 +2,14 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "./globals.css";
+import "./community.css";
+import {
+  Community,
+  PredictBar,
+  SIGN_IN_URL,
+  usePicks,
+  useSession,
+} from "./community";
 
 const LOGO_SRC = "/logo.png";
 
@@ -306,6 +314,8 @@ function makeTeam(team, score) {
   );
 
   return {
+    // PandaScore team id, needed for match predictions
+    id: Number(team?.id) || null,
     name: text(team?.name || team?.acronym || team?.tag || team) || "TBD",
     logo,
     score:
@@ -382,7 +392,7 @@ function normalizeMatch(raw, hint) {
 
   let teams = pickTeams(raw);
 
-  while (teams.length < 2) teams.push({ name: "TBD", logo: "", score: null });
+  while (teams.length < 2) teams.push({ id: null, name: "TBD", logo: "", score: null });
 
   teams = teams.slice(0, 2);
 
@@ -746,7 +756,7 @@ function StatusPill({ match }) {
   );
 }
 
-function MatchCard({ match }) {
+function MatchCard({ match, session, picks, onPick }) {
   const [a, b] = match.teams;
   const decided =
     match.status === "finished" &&
@@ -762,56 +772,60 @@ function MatchCard({ match }) {
     : {};
 
   return (
-    <Tag className="system-card match-card" {...linkProps}>
-      <div className="match-top">
-        <span className="match-game">
-          {game && <GameLogo game={game} size="xs" />}
-          {gameLabel(match.game)}
-          {match.bestOf ? ` ${match.bestOf}` : ""}
-        </span>
+    <div className="match-wrap">
+      <Tag className="system-card match-card" {...linkProps}>
+        <div className="match-top">
+          <span className="match-game">
+            {game && <GameLogo game={game} size="xs" />}
+            {gameLabel(match.game)}
+            {match.bestOf ? ` ${match.bestOf}` : ""}
+          </span>
 
-        <StatusPill match={match} />
-      </div>
+          <StatusPill match={match} />
+        </div>
 
-      <div className="match-teams">
-        {[a, b].map((team, index) => {
-          const other = index === 0 ? b : a;
-          const lost = decided && team.score < other.score;
+        <div className="match-teams">
+          {[a, b].map((team, index) => {
+            const other = index === 0 ? b : a;
+            const lost = decided && team.score < other.score;
 
-          return (
-            <div className={`team-row ${lost ? "lost" : ""}`} key={index}>
-              <TeamLogo team={team} />
+            return (
+              <div className={`team-row ${lost ? "lost" : ""}`} key={index}>
+                <TeamLogo team={team} />
 
-              <span className="team-name">{team.name}</span>
+                <span className="team-name">{team.name}</span>
 
-              {showScore && (
-                <span className="team-score">{team.score ?? "-"}</span>
-              )}
-            </div>
-          );
-        })}
-      </div>
+                {showScore && (
+                  <span className="team-score">{team.score ?? "-"}</span>
+                )}
+              </div>
+            );
+          })}
+        </div>
 
-      <div className="match-foot">
-        <span className="match-event">
-          {match.eventLogo && (
-            <img
-              src={match.eventLogo}
-              alt=""
-              loading="lazy"
-              referrerPolicy="no-referrer"
-              draggable={false}
-              onError={(event) => {
-                event.currentTarget.style.display = "none";
-              }}
-            />
-          )}
-          <span>{match.event || "Esports"}</span>
-        </span>
+        <div className="match-foot">
+          <span className="match-event">
+            {match.eventLogo && (
+              <img
+                src={match.eventLogo}
+                alt=""
+                loading="lazy"
+                referrerPolicy="no-referrer"
+                draggable={false}
+                onError={(event) => {
+                  event.currentTarget.style.display = "none";
+                }}
+              />
+            )}
+            <span>{match.event || "Esports"}</span>
+          </span>
 
-        {match.status === "live" && match.url && <span>Watch live</span>}
-      </div>
-    </Tag>
+          {match.status === "live" && match.url && <span>Watch live</span>}
+        </div>
+      </Tag>
+
+      <PredictBar match={match} session={session} picks={picks} onPick={onPick} />
+    </div>
   );
 }
 
@@ -969,6 +983,9 @@ export default function Home() {
   const matchesFeed = useFeed(ESPORTS_API, parseMatches, MATCH_REFRESH_MS);
   const newsFeed = useFeed(NEWS_API, parseNews, NEWS_REFRESH_MS);
 
+  const session = useSession();
+  const { picks, pick } = usePicks(session.signedIn);
+
   const [query, setQuery] = useState("");
   const [game, setGame] = useState("all");
   const [source, setSource] = useState("all");
@@ -1076,7 +1093,12 @@ export default function Home() {
     const onKey = (event) => {
       const tag = event.target?.tagName;
 
-      if (event.key === "/" && tag !== "INPUT" && tag !== "TEXTAREA") {
+      if (
+        event.key === "/" &&
+        tag !== "INPUT" &&
+        tag !== "TEXTAREA" &&
+        tag !== "SELECT"
+      ) {
         event.preventDefault();
         searchRef.current?.focus();
       } else if (
@@ -1120,6 +1142,8 @@ export default function Home() {
     ? `Updated ${timeFormat.format(matchesFeed.updatedAt)}`
     : "";
 
+  const username = session.me?.user?.username;
+
   return (
     <main className="explorer">
       {/* ================= NAV ================= */}
@@ -1146,6 +1170,9 @@ export default function Home() {
           <a className="explorer-nav-link" href="#news">
             News
           </a>
+          <a className="explorer-nav-link" href="#community">
+            Community
+          </a>
           <a className="explorer-nav-link" href="#networks">
             Networks
           </a>
@@ -1154,16 +1181,30 @@ export default function Home() {
           </a>
         </div>
 
-        <a className="nav-cta" href="#matches">
-          {liveCount > 0 ? (
-            <>
-              <i className="live-dot" />
-              {liveCount} live
-            </>
+        <div className="nav-actions">
+          {session.signedIn ? (
+            <a className="nav-user" href="#community" title="Your community activity">
+              {username}
+            </a>
           ) : (
-            "Matches"
+            !session.loading && (
+              <a className="nav-user" href={SIGN_IN_URL}>
+                Sign in
+              </a>
+            )
           )}
-        </a>
+
+          <a className="nav-cta" href="#matches">
+            {liveCount > 0 ? (
+              <>
+                <i className="live-dot" />
+                {liveCount} live
+              </>
+            ) : (
+              "Matches"
+            )}
+          </a>
+        </div>
       </nav>
 
       <div className="explorer-main">
@@ -1192,7 +1233,8 @@ export default function Home() {
 
           <p>
             Live scores, upcoming matches and headlines from the biggest gaming
-            news networks, across {GAMES.length} esports titles.
+            news networks, across {GAMES.length} esports titles. Find a squad,
+            enter a bracket and call the winners.
           </p>
 
           <div className="explorer-search" role="search">
@@ -1229,6 +1271,9 @@ export default function Home() {
           <div className="hero-actions">
             <a className="hub-button primary" href="#matches">
               Watch live matches
+            </a>
+            <a className="hub-button" href="#community">
+              Find a squad
             </a>
             <a className="hub-button" href="#news">
               Read the news
@@ -1308,7 +1353,12 @@ export default function Home() {
             <div className="section-heading-copy">
               <span>Esports</span>
               <h2>Matches</h2>
-              <p>Scores refresh every 30 seconds.</p>
+              <p>
+                Scores refresh every 30 seconds.
+                {session.signedIn
+                  ? " Pick a winner on any upcoming match."
+                  : " Sign in to predict winners on upcoming matches."}
+              </p>
             </div>
 
             {matchesNote && <span className="hub-updated">{matchesNote}</span>}
@@ -1368,7 +1418,13 @@ export default function Home() {
             <>
               <div className="system-grid">
                 {shownMatches.map((match) => (
-                  <MatchCard key={`${match.game}-${match.id}`} match={match} />
+                  <MatchCard
+                    key={`${match.game}-${match.id}`}
+                    match={match}
+                    session={session}
+                    picks={picks}
+                    onPick={pick}
+                  />
                 ))}
               </div>
 
@@ -1467,6 +1523,10 @@ export default function Home() {
           )}
         </section>
 
+        {/* ================= COMMUNITY ================= */}
+
+        <Community games={GAMES} session={session} />
+
         {/* ================= NETWORKS ================= */}
 
         <section className="systems-section hub-section" id="networks">
@@ -1518,7 +1578,7 @@ export default function Home() {
 
               <p>
                 Live scores, schedules and headlines from the biggest gaming
-                publishers, with no accounts, no paywalls and no clutter.
+                publishers, plus a community to play, compete and predict with.
               </p>
 
               <div className="hero-actions left">
@@ -1568,6 +1628,7 @@ export default function Home() {
         <div className="explorer-footer-links">
           <a href="#games">Games</a>
           <a href="#news">News</a>
+          <a href="#community">Community</a>
           <a href="https://fades.lol">
             Fades <ExternalIcon />
           </a>
