@@ -40,7 +40,7 @@ const GAMES = [
     label: "Counter-Strike 2",
     short: "CS2",
     color: "#e8a13a",
-    logo: SiCounterstrike,
+    logo: null,
     blurb: "Majors, tier-one events and the pro circuit.",
   },
   {
