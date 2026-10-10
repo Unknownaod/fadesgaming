@@ -12,8 +12,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata = {
-  title: "Fades Systems",
-  description: "The home of the Fades Ecosystem",
+  title: "Fades Gaming",
+  description: "The home of the Fades Gaming Hub",
 };
 
 export default function RootLayout({ children }) {
