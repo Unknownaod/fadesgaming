@@ -16,7 +16,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import "./hub.css";
+import "./globals.css";
 
 const LOGO_SRC = "/logo.png";
 
