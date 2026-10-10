@@ -6,7 +6,7 @@ import "./dashboard.css";
 
 const API_BASE = process.env.NEXT_PUBLIC_FADES_API || "https://api.fades.lol";
 const GAMING_API = process.env.NEXT_PUBLIC_GAMING_API || `${API_BASE}/gaming`;
-const SIGN_IN_URL = process.env.NEXT_PUBLIC_FADES_SIGNIN || "https://fades.lol";
+const SIGN_IN_URL = process.env.NEXT_PUBLIC_FADES_SIGNIN || "https://fades.lol/acc/security/manage";
 
 /* =========================================================
    API + SHARED HOOKS (same credentialed fetch as GamingHub)
