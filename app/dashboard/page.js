@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useState } from "react";
 
 import "./dashboard.css";
 
@@ -154,39 +154,47 @@ function Loading({ list }) {
    OVERVIEW
    ========================================================= */
 
-function Overview({ session, setTab }) {
+function Overview({ setTab, prefs }) {
   const stats = useApi("/stats");
-  const { me } = session;
   const s = stats.data || {};
 
-  const mine = [
-    ["Teams", me.teams.length, "teams"],
-    ["Following", me.follows, "follows"],
-    ["Unread messages", me.unread, "messages"],
+  const actions = [
+    ["Create a team", "Start a squad and invite players.", "teams"],
+    ["Host a tournament", "Run a bracket and report the results.", "tournaments"],
+    ["Post to the hub", "Share a clip, a guide or a thought.", "posts"],
+    ["Catch up on chats", "Read your DMs, groups and team chats.", "messages"],
+    ["Update your profile", "Gamertag, platforms and social links.", "profile"],
+    ["Review your account", "Your ID, linked profiles and data.", "account"],
   ];
   const hub = [["Players", s.players], ["Open parties", s.openLfg], ["Tournaments", s.tournaments], ["Posts", s.posts]];
 
   return (
     <>
-      <div className="stat-grid">
-        {mine.map(([label, value, target]) => (
-          <button key={label} type="button" className="stat-card" onClick={() => setTab(target)}>
-            <strong>{value}</strong>
-            <span>{label}</span>
-          </button>
-        ))}
-      </div>
-
-      <div className="section-heading-copy"><span>Across the hub</span></div>
-
-      <div className="stat-grid quiet">
-        {hub.map(([label, value]) => (
-          <div key={label} className="stat-card static">
-            <strong>{value ?? "-"}</strong>
-            <span>{label}</span>
+      <div className="system-grid">
+        {actions.map(([title, body, target]) => (
+          <div className="system-card" key={title}>
+            <strong className="card-title">{title}</strong>
+            <span className="card-sub">{body}</span>
+            <div className="card-actions">
+              <Btn primary onClick={() => setTab(target)}>Open</Btn>
+            </div>
           </div>
         ))}
       </div>
+
+      {prefs.hubStats === "on" && (
+        <>
+          <div className="section-heading-copy"><span>Across the hub</span></div>
+          <div className="stat-grid">
+            {hub.map(([label, value]) => (
+              <div key={label} className="stat-card">
+                <strong>{value ?? "-"}</strong>
+                <span>{label}</span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
     </>
   );
 }
@@ -197,11 +205,11 @@ function Overview({ session, setTab }) {
 
 const LINK_KEYS = ["steam", "discord", "twitch", "youtube", "twitter", "riot", "battlenet", "xbox", "psn", "epic"];
 
-function ProfileTab() {
+function ProfileTab({ onSaved }) {
   const d = useApi("/profiles/me");
   const [f, setF] = useState(null);
   const [saved, setSaved] = useState(false);
-  const { act, error, busy } = useAct();
+  const { act, error, busy } = useAct(onSaved);
 
   useEffect(() => {
     const p = d.data?.profile;
@@ -831,11 +839,169 @@ function ReportsTab() {
    PAGE
    ========================================================= */
 
+/* =========================================================
+   ACCOUNT
+   ========================================================= */
+
+function AccountTab({ session, setTab }) {
+  const { user, profile, admin, teams } = session.me;
+  const [copied, setCopied] = useState(false);
+  const { act, error, busy } = useAct();
+  const links = Object.entries(profile?.links || {});
+
+  const copy = () => {
+    try {
+      navigator.clipboard.writeText(user.id);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      /* clipboard blocked */
+    }
+  };
+
+  const exportData = () =>
+    act(async () => {
+      const safe = (path) => api(path).catch(() => null);
+      const [predictions, follows, posts] = await Promise.all([
+        safe("/predictions/me"),
+        safe("/follows"),
+        safe(`/posts?author=${encodeURIComponent(user.id)}&limit=50`),
+      ]);
+
+      const blob = new Blob(
+        [JSON.stringify({ exportedAt: new Date().toISOString(), account: user, profile, teams, predictions: predictions?.predictions, follows, posts: posts?.posts }, null, 2)],
+        { type: "application/json" }
+      );
+      const url = URL.createObjectURL(blob);
+      Object.assign(document.createElement("a"), { href: url, download: "fades-gaming-data.json" }).click();
+      URL.revokeObjectURL(url);
+    });
+
+  const rows = [
+    ["Gamertag", profile?.gamertag || "Not set"],
+    ["Country", profile?.country || "Not set"],
+    ["Platforms", profile?.platforms?.join(", ") || "None"],
+    ["Role", admin ? "Moderator" : "Player"],
+    ["Joined", profile?.createdAt ? new Date(profile.createdAt).toLocaleDateString() : "Recently"],
+  ];
+
+  return (
+    <div className="account-grid">
+      <div className="system-card">
+        <div className="account-id">
+          <Avatar user={user} xl />
+          <div>
+            <strong className="card-title">{user.username}</strong>
+            <span className="card-sub">{teams.length} {teams.length === 1 ? "team" : "teams"} · {session.me.follows} following</span>
+          </div>
+        </div>
+        <dl className="kv">
+          <div>
+            <dt>User ID</dt>
+            <dd>{user.id} <button type="button" className="chip" onClick={copy}>{copied ? "Copied" : "Copy"}</button></dd>
+          </div>
+          {rows.map(([k, v]) => (
+            <div key={k}><dt>{k}</dt><dd>{v}</dd></div>
+          ))}
+        </dl>
+        <div className="card-actions">
+          <Btn onClick={() => setTab("profile")}>Edit profile</Btn>
+        </div>
+      </div>
+
+      <div className="system-card">
+        <strong className="card-title">Fades account</strong>
+        <span className="card-sub">Your email, password and sign-in security are managed on your main Fades account.</span>
+        <div className="card-actions">
+          <a className="hub-button primary" href={SIGN_IN_URL}>Manage Fades account</a>
+        </div>
+      </div>
+
+      <div className="system-card">
+        <strong className="card-title">Linked profiles</strong>
+        {links.length === 0 ? (
+          <span className="card-sub">Add Steam, Discord, Twitch and more so teammates can find you.</span>
+        ) : (
+          <dl className="kv">
+            {links.map(([k, v]) => (
+              <div key={k}><dt>{k}</dt><dd>{v}</dd></div>
+            ))}
+          </dl>
+        )}
+        <div className="card-actions">
+          <Btn onClick={() => setTab("profile")}>{links.length ? "Edit links" : "Add links"}</Btn>
+        </div>
+      </div>
+
+      <div className="system-card">
+        <strong className="card-title">Your data</strong>
+        <span className="card-sub">Download your profile, teams, follows, predictions and posts as a JSON file.</span>
+        <Err e={error} />
+        <div className="card-actions">
+          <Btn disabled={busy} onClick={exportData}>{busy ? "Preparing..." : "Export my data"}</Btn>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* =========================================================
+   SETTINGS (saved in this browser)
+   ========================================================= */
+
+const PREFS_KEY = "fades-dashboard-prefs";
+const DEFAULT_PREFS = { density: "comfortable", start: "overview", hubStats: "on" };
+
+function Seg({ label, value, options, onChange }) {
+  return (
+    <div className="hub-pills" role="group" aria-label={label}>
+      {options.map(([v, text]) => (
+        <button key={v} type="button" aria-pressed={value === v} onClick={() => onChange(v)}>{text}</button>
+      ))}
+    </div>
+  );
+}
+
+function SettingsTab({ prefs, setPrefs, tabs }) {
+  const set = (key) => (value) => setPrefs((c) => ({ ...c, [key]: value }));
+
+  return (
+    <div className="system-card">
+      <div className="pref-row">
+        <div><strong>Density</strong><span>How much space cards and forms take up.</span></div>
+        <Seg label="Density" value={prefs.density} onChange={set("density")} options={[["comfortable", "Comfortable"], ["compact", "Compact"]]} />
+      </div>
+
+      <div className="pref-row">
+        <div><strong>Open on</strong><span>The section you land on when you open the dashboard.</span></div>
+        <select className="hub-input" style={{ width: "auto" }} value={prefs.start} onChange={(e) => set("start")(e.target.value)}>
+          {tabs.filter((id) => id !== "reports").map((id) => (
+            <option key={id} value={id}>{COPY[id][0]}</option>
+          ))}
+        </select>
+      </div>
+
+      <div className="pref-row">
+        <div><strong>Hub stats</strong><span>Show player, party, tournament and post totals on the overview.</span></div>
+        <Seg label="Hub stats" value={prefs.hubStats} onChange={set("hubStats")} options={[["on", "Show"], ["off", "Hide"]]} />
+      </div>
+
+      <div className="pref-row">
+        <div><strong>Reset</strong><span>These settings are saved in this browser only.</span></div>
+        <Btn onClick={() => setPrefs(DEFAULT_PREFS)}>Reset to defaults</Btn>
+      </div>
+    </div>
+  );
+}
+
+/* =========================================================
+   PAGE
+   ========================================================= */
+
 const HUB_URL = process.env.NEXT_PUBLIC_HUB_URL || "https://gaming.fades.lol";
 
 const COPY = {
-  overview: ["Overview", "Your activity at a glance."],
-  profile: ["Profile", "How other players see you."],
+  overview: ["Overview", "Your activity and shortcuts."],
   teams: ["Teams", "Create squads and manage who's in them."],
   parties: ["Parties", "Groups you're looking for or have joined."],
   tournaments: ["Tournaments", "Host brackets and report results."],
@@ -844,11 +1010,24 @@ const COPY = {
   follows: ["Following", "Games, teams and players you follow."],
   messages: ["Messages", "Direct messages and group chats."],
   predictions: ["Predictions", "Your match picks and how they went."],
+  profile: ["Profile", "How other players see you."],
+  account: ["Account", "Your identity, linked profiles and data."],
+  settings: ["Settings", "Make the dashboard work your way."],
   reports: ["Reports", "Open reports waiting on a moderator."],
 };
 
-function Avatar({ user }) {
-  return <span className="dash-avatar">{user?.avatar ? <img src={user.avatar} alt="" /> : (user?.username || "F").slice(0, 1).toUpperCase()}</span>;
+const GROUPS = [
+  ["Dashboard", ["overview"]],
+  ["Community", ["teams", "parties", "tournaments", "posts", "games", "follows", "messages", "predictions"]],
+  ["Account", ["profile", "account", "settings"]],
+];
+
+function Avatar({ user, xl }) {
+  return (
+    <span className={`dash-avatar ${xl ? "xl" : ""}`}>
+      {user?.avatar ? <img src={user.avatar} alt="" /> : (user?.username || "F").slice(0, 1).toUpperCase()}
+    </span>
+  );
 }
 
 function Nav({ user }) {
@@ -871,14 +1050,35 @@ function Nav({ user }) {
 export default function DashboardPage() {
   const session = useSession();
   const [tab, setTab] = useState("overview");
+  const [prefs, setPrefs] = useState(DEFAULT_PREFS);
   const gameList = useApi("/games");
+
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(PREFS_KEY) || "null");
+      if (saved) {
+        setPrefs({ ...DEFAULT_PREFS, ...saved });
+        if (COPY[saved.start] && saved.start !== "reports") setTab(saved.start);
+      }
+    } catch {
+      /* storage unavailable */
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(PREFS_KEY, JSON.stringify(prefs));
+    } catch {
+      /* storage unavailable */
+    }
+  }, [prefs]);
 
   const allGames = gameList.data?.games || [];
   const games = allGames.map((g) => ({ id: g.id, label: g.label }));
 
   if (session.loading || !session.signedIn) {
     return (
-      <div className="dash">
+      <div className="dash" data-density={prefs.density}>
         <Nav />
         <div className="dash-center">
           {session.loading ? (
@@ -894,47 +1094,54 @@ export default function DashboardPage() {
     );
   }
 
-  const { user, profile, admin, unread } = session.me;
+  const { user, profile, admin, unread, teams, follows } = session.me;
   const meId = user.id;
-
-  const tabs = [
-    ...Object.keys(COPY).filter((id) => id !== "reports"),
-    ...(admin ? ["reports"] : []),
-  ];
+  const groups = [...GROUPS, ...(admin ? [["Moderation", ["reports"]]] : [])];
+  const allTabs = groups.flatMap(([, ids]) => ids);
   const [title, blurb] = COPY[tab];
 
+  const stats = [["Teams", teams.length], ["Following", follows], ["Unread", unread], ["Role", admin ? "Mod" : "Player"]];
+
   return (
-    <div className="dash" id="dashboard">
+    <div className="dash" id="dashboard" data-density={prefs.density}>
       <Nav user={user} />
 
       <main className="dash-main">
         <section className="dash-hero">
-          <Avatar user={user} />
-          <div>
-            <h1>{profile?.gamertag || user.username}{admin && <span className="dash-badge">Moderator</span>}</h1>
-            <p>{profile?.gamertag ? `Signed in as ${user.username}` : "Set a gamertag in your profile so players can find you."}</p>
+          <Avatar user={user} xl />
+          <span className="dash-eyebrow"><i />Dashboard</span>
+          <h1>{profile?.gamertag || user.username}<span> HQ</span></h1>
+          <p>Manage your squads, brackets, posts and account in one place.</p>
+          <div className="dash-stats">
+            {stats.map(([label, value]) => (
+              <div key={label}><strong>{value}</strong><span>{label}</span></div>
+            ))}
           </div>
         </section>
 
         <div className="dash-layout">
           <nav className="dash-side" aria-label="Dashboard sections">
-            {tabs.map((id) => (
-              <button key={id} type="button" className="dash-tab" aria-pressed={tab === id} onClick={() => setTab(id)}>
-                {COPY[id][0]}
-                {id === "messages" && unread > 0 && <span className="dash-tab-count">{unread}</span>}
-              </button>
+            {groups.map(([label, ids]) => (
+              <Fragment key={label}>
+                <div className="dash-group">{label}</div>
+                {ids.map((id) => (
+                  <button key={id} type="button" className="dash-tab" aria-pressed={tab === id} onClick={() => setTab(id)}>
+                    {COPY[id][0]}
+                    {id === "messages" && unread > 0 && <span className="dash-count">{unread}</span>}
+                  </button>
+                ))}
+              </Fragment>
             ))}
           </nav>
 
           <section className="dash-content">
             <div className="section-heading-copy">
-              <span>Dashboard</span>
+              <span>{groups.find(([, ids]) => ids.includes(tab))?.[0]}</span>
               <h2>{title}</h2>
               <p>{blurb}</p>
             </div>
 
-            {tab === "overview" && <Overview session={session} setTab={setTab} />}
-            {tab === "profile" && <ProfileTab />}
+            {tab === "overview" && <Overview setTab={setTab} prefs={prefs} />}
             {tab === "teams" && <TeamsTab games={games} session={session} />}
             {tab === "parties" && <PartiesTab games={games} meId={meId} />}
             {tab === "tournaments" && <TournamentsTab games={games} meId={meId} />}
@@ -943,10 +1150,21 @@ export default function DashboardPage() {
             {tab === "follows" && <FollowsTab games={games} onChange={session.refresh} />}
             {tab === "messages" && <MessagesTab meId={meId} onChange={session.refresh} />}
             {tab === "predictions" && <PredictionsTab games={games} />}
+            {tab === "profile" && <ProfileTab onSaved={session.refresh} />}
+            {tab === "account" && <AccountTab session={session} setTab={setTab} />}
+            {tab === "settings" && <SettingsTab prefs={prefs} setPrefs={setPrefs} tabs={allTabs} />}
             {tab === "reports" && admin && <ReportsTab />}
           </section>
         </div>
       </main>
+
+      <footer className="dash-footer">
+        <strong>Fades</strong>
+        <nav>
+          <a href={HUB_URL}>Gaming hub</a>
+          <a href={SIGN_IN_URL}>Fades account</a>
+        </nav>
+      </footer>
     </div>
   );
 }
