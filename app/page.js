@@ -11,6 +11,19 @@ import {
   useSession,
 } from "./community";
 
+import {
+  SiCounterstrike,
+  SiValorant,
+  SiDota2,
+  SiLeagueoflegends,
+  SiRocket,
+  SiOverwatch,
+  SiUbisoft,
+  SiCallofduty,
+  SiPubg,
+  SiStarcraft,
+} from "react-icons/si";
+
 const LOGO_SRC = "/logo.png";
 
 const API_BASE = process.env.NEXT_PUBLIC_FADES_API || "https://api.fades.lol";
@@ -32,13 +45,14 @@ const NEWS_PAGE_SIZE = 6;
   Drop the official press-kit logo for each game there. Until a file exists,
   a monogram badge in the game's accent color is shown instead.
 */
+
 const GAMES = [
   {
     id: "cs2",
     label: "Counter-Strike 2",
     short: "CS2",
     color: "#e8a13a",
-    logo: "/games/cs2.svg",
+    logo: SiCounterstrike,
     blurb: "Majors, tier-one events and the pro circuit.",
   },
   {
@@ -46,7 +60,7 @@ const GAMES = [
     label: "Valorant",
     short: "Valorant",
     color: "#ff4655",
-    logo: "/games/valorant.svg",
+    logo: SiValorant,
     blurb: "Champions, Masters and regional leagues.",
   },
   {
@@ -54,7 +68,7 @@ const GAMES = [
     label: "Dota 2",
     short: "Dota 2",
     color: "#e0473a",
-    logo: "/games/dota2.svg",
+    logo: SiDota2,
     blurb: "The International and every major qualifier.",
   },
   {
@@ -62,7 +76,7 @@ const GAMES = [
     label: "League of Legends",
     short: "LoL",
     color: "#c8a24b",
-    logo: "/games/lol.svg",
+    logo: SiLeagueoflegends,
     blurb: "Worlds, MSI and the regional splits.",
   },
   {
@@ -70,7 +84,7 @@ const GAMES = [
     label: "Rocket League",
     short: "Rocket League",
     color: "#3b8cff",
-    logo: "/games/rl.svg",
+    logo: SiRocket,
     blurb: "RLCS and open qualifiers.",
   },
   {
@@ -78,7 +92,7 @@ const GAMES = [
     label: "Overwatch 2",
     short: "Overwatch 2",
     color: "#f99e1a",
-    logo: "/games/ow.svg",
+    logo: SiOverwatch,
     blurb: "Champions Series and pro play.",
   },
   {
@@ -86,7 +100,7 @@ const GAMES = [
     label: "Rainbow Six Siege",
     short: "R6 Siege",
     color: "#4aa3df",
-    logo: "/games/r6.svg",
+    logo: SiUbisoft,
     blurb: "Six Invitational and the Siege X leagues.",
   },
   {
@@ -94,7 +108,7 @@ const GAMES = [
     label: "Call of Duty",
     short: "Call of Duty",
     color: "#7ac142",
-    logo: "/games/cod.svg",
+    logo: SiCallofduty,
     blurb: "Call of Duty League and open events.",
   },
   {
@@ -102,7 +116,7 @@ const GAMES = [
     label: "PUBG",
     short: "PUBG",
     color: "#f2a900",
-    logo: "/games/pubg.svg",
+    logo: SiPubg,
     blurb: "Global series and regional circuits.",
   },
   {
@@ -110,7 +124,7 @@ const GAMES = [
     label: "StarCraft II",
     short: "StarCraft II",
     color: "#3aa0ff",
-    logo: "/games/sc2.svg",
+    logo: SiStarcraft,
     blurb: "GSL, IEM and the ladder's best.",
   },
 ];
