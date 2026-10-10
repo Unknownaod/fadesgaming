@@ -1,14 +1,16 @@
+"use client";
+
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "./globals.css";
 
 const LOGO_SRC = "/logo.png";
 
-const NEWS_API =
-  process.env.NEXT_PUBLIC_GAMING_NEWS_API ||
-  "https://api.fades.lol/browser/gaming-news";
+const API_BASE = process.env.NEXT_PUBLIC_FADES_API || "https://api.fades.lol";
+
+const NEWS_API = process.env.NEXT_PUBLIC_GAMING_NEWS_API || `${API_BASE}/gaming/news`;
 
 const ESPORTS_API =
-  process.env.NEXT_PUBLIC_ESPORTS_API || "/api/gaming/esports";
+  process.env.NEXT_PUBLIC_ESPORTS_API || `${API_BASE}/gaming/esports`;
 
 const MATCH_REFRESH_MS = 30 * 1000;
 const NEWS_REFRESH_MS = 5 * 60 * 1000;
@@ -17,20 +19,97 @@ const MATCH_PAGE_SIZE = 9;
 const NEWS_FIRST_PAGE = 7;
 const NEWS_PAGE_SIZE = 6;
 
+/*
+  Game logos are loaded from /public/games/<id>.svg.
+  Drop the official press-kit logo for each game there. Until a file exists,
+  a monogram badge in the game's accent color is shown instead.
+*/
 const GAMES = [
-  { id: "all", label: "All games" },
-  { id: "cs2", label: "CS2" },
-  { id: "valorant", label: "Valorant" },
-  { id: "dota2", label: "Dota 2" },
-  { id: "lol", label: "League of Legends" },
+  {
+    id: "cs2",
+    label: "Counter-Strike 2",
+    short: "CS2",
+    color: "#e8a13a",
+    logo: "/games/cs2.svg",
+    blurb: "Majors, tier-one events and the pro circuit.",
+  },
+  {
+    id: "valorant",
+    label: "Valorant",
+    short: "Valorant",
+    color: "#ff4655",
+    logo: "/games/valorant.svg",
+    blurb: "Champions, Masters and regional leagues.",
+  },
+  {
+    id: "dota2",
+    label: "Dota 2",
+    short: "Dota 2",
+    color: "#e0473a",
+    logo: "/games/dota2.svg",
+    blurb: "The International and every major qualifier.",
+  },
+  {
+    id: "lol",
+    label: "League of Legends",
+    short: "LoL",
+    color: "#c8a24b",
+    logo: "/games/lol.svg",
+    blurb: "Worlds, MSI and the regional splits.",
+  },
+  {
+    id: "rl",
+    label: "Rocket League",
+    short: "Rocket League",
+    color: "#3b8cff",
+    logo: "/games/rl.svg",
+    blurb: "RLCS and open qualifiers.",
+  },
+  {
+    id: "ow",
+    label: "Overwatch 2",
+    short: "Overwatch 2",
+    color: "#f99e1a",
+    logo: "/games/ow.svg",
+    blurb: "Champions Series and pro play.",
+  },
+  {
+    id: "r6",
+    label: "Rainbow Six Siege",
+    short: "R6 Siege",
+    color: "#4aa3df",
+    logo: "/games/r6.svg",
+    blurb: "Six Invitational and the Siege X leagues.",
+  },
+  {
+    id: "cod",
+    label: "Call of Duty",
+    short: "Call of Duty",
+    color: "#7ac142",
+    logo: "/games/cod.svg",
+    blurb: "Call of Duty League and open events.",
+  },
+  {
+    id: "pubg",
+    label: "PUBG",
+    short: "PUBG",
+    color: "#f2a900",
+    logo: "/games/pubg.svg",
+    blurb: "Global series and regional circuits.",
+  },
+  {
+    id: "sc2",
+    label: "StarCraft II",
+    short: "StarCraft II",
+    color: "#3aa0ff",
+    logo: "/games/sc2.svg",
+    blurb: "GSL, IEM and the ladder's best.",
+  },
 ];
 
-const SHORT_GAME = {
-  cs2: "CS2",
-  valorant: "Valorant",
-  dota2: "Dota 2",
-  lol: "LoL",
-};
+const GAME_BY_ID = Object.fromEntries(GAMES.map((game) => [game.id, game]));
+
+const GAME_FILTERS = [{ id: "all", label: "All games" }, ...GAMES.map((g) => ({ id: g.id, label: g.short }))];
 
 const MATCH_TABS = [
   { id: "live", label: "Live" },
@@ -44,23 +123,27 @@ const EMPTY_COPY = {
   finished: ["No recent results", "Results appear here after matches end."],
 };
 
-const ROADMAP = [
-  {
-    name: "Teams",
-    description: "Create a team, build a roster and invite players.",
-    path: "/teams",
-  },
-  {
-    name: "Tournaments",
-    description: "Run brackets and report results.",
-    path: "/tournaments",
-  },
-  {
-    name: "Rankings",
-    description: "Ratings for every team, game by game.",
-    path: "/rankings",
-  },
+/* Keep in sync with FEEDS in the backend gaming router. */
+const NETWORKS = [
+  { name: "IGN", domain: "ign.com", url: "https://www.ign.com" },
+  { name: "PC Gamer", domain: "pcgamer.com", url: "https://www.pcgamer.com" },
+  { name: "Eurogamer", domain: "eurogamer.net", url: "https://www.eurogamer.net" },
+  { name: "Rock Paper Shotgun", domain: "rockpapershotgun.com", url: "https://www.rockpapershotgun.com" },
+  { name: "GameSpot", domain: "gamespot.com", url: "https://www.gamespot.com" },
+  { name: "Polygon", domain: "polygon.com", url: "https://www.polygon.com" },
+  { name: "Kotaku", domain: "kotaku.com", url: "https://kotaku.com" },
+  { name: "VG247", domain: "vg247.com", url: "https://www.vg247.com" },
+  { name: "Dot Esports", domain: "dotesports.com", url: "https://dotesports.com" },
+  { name: "Dexerto", domain: "dexerto.com", url: "https://www.dexerto.com" },
+  { name: "HLTV", domain: "hltv.org", url: "https://www.hltv.org" },
 ];
+
+const NETWORK_BY_NAME = Object.fromEntries(
+  NETWORKS.map((network) => [network.name.toLowerCase(), network])
+);
+
+const favicon = (domain) =>
+  `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=64`;
 
 /* =========================================================
    SMALL HELPERS
@@ -97,6 +180,7 @@ function initials(name) {
     .split(/\s+/)
     .filter(Boolean);
 
+  if (words.length === 0) return "?";
   if (words.length === 1) return words[0].slice(0, 3).toUpperCase();
 
   return words
@@ -118,12 +202,22 @@ function canonicalGame(value) {
   if (key.includes("valorant")) return "valorant";
   if (key.includes("dota")) return "dota2";
   if (key.includes("leagueoflegends") || key === "lol") return "lol";
+  if (key.includes("rocketleague") || key === "rl") return "rl";
+  if (key.includes("overwatch") || key === "ow") return "ow";
+  if (key.includes("rainbow") || key.includes("r6") || key.includes("siege")) {
+    return "r6";
+  }
+  if (key.includes("callofduty") || key.includes("codmw") || key === "cod") {
+    return "cod";
+  }
+  if (key.includes("pubg")) return "pubg";
+  if (key.includes("starcraft") || key === "sc2") return "sc2";
 
   return key;
 }
 
 function gameLabel(id) {
-  return SHORT_GAME[id] || (id ? id.toUpperCase() : "Esports");
+  return GAME_BY_ID[id]?.short || (id ? id.toUpperCase() : "Esports");
 }
 
 const timeFormat = new Intl.DateTimeFormat([], {
@@ -166,10 +260,31 @@ function countdown(ms) {
   return `In ${Math.floor(minutes / 60)} h ${minutes % 60} min`;
 }
 
+function relativeTime(ms) {
+  if (!ms) return "";
+
+  const diff = Date.now() - ms;
+
+  if (diff < 0) return "";
+
+  const minutes = Math.floor(diff / 60000);
+
+  if (minutes < 1) return "Just now";
+  if (minutes < 60) return `${minutes}m ago`;
+
+  const hours = Math.floor(minutes / 60);
+
+  if (hours < 24) return `${hours}h ago`;
+
+  const days = Math.floor(hours / 24);
+
+  return days < 7 ? `${days}d ago` : dayFormat.format(ms);
+}
+
 /* =========================================================
    MATCH NORMALIZING
    Accepts raw PandaScore objects, OpenDota-style objects,
-   or a flat shape like { teams: [{ name, logo, score }] }.
+   or the flat shape the /gaming/esports route returns.
    ========================================================= */
 
 const BUCKETS = {
@@ -342,6 +457,7 @@ function normalizeMatch(raw, hint) {
     startsAt,
     game,
     event: [league, series].filter(Boolean).join(" "),
+    eventLogo: safeUrl(raw.league?.image_url || raw.leagueLogo || raw.eventLogo),
     bestOf: games > 0 ? `Bo${games}` : "",
     url: safeUrl(stream) || safeUrl(raw.url || raw.link),
   };
@@ -382,13 +498,21 @@ function parseNews(data) {
   const list = Array.isArray(data) ? data : data?.items || data?.articles || [];
 
   return list
-    .map((item) => ({
-      title: text(item.title),
-      url: safeUrl(item.url || item.link),
-      image: safeUrl(item.image || item.thumbnail),
-      source: text(item.source),
-      age: text(item.age),
-    }))
+    .map((item) => {
+      const source = text(item.source);
+      const published = toMs(item.published || item.pubDate || item.date);
+      const network = NETWORK_BY_NAME[source.toLowerCase()];
+
+      return {
+        title: text(item.title),
+        url: safeUrl(item.url || item.link),
+        image: safeUrl(item.image || item.thumbnail),
+        source,
+        domain: text(item.domain) || network?.domain || "",
+        published,
+        age: text(item.age) || relativeTime(published),
+      };
+    })
     .filter((item) => item.title && item.url);
 }
 
@@ -517,6 +641,58 @@ function ExternalIcon() {
 }
 
 /* =========================================================
+   LOGOS
+   ========================================================= */
+
+function GameLogo({ game, size = "md" }) {
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    setFailed(false);
+  }, [game?.logo]);
+
+  return (
+    <span
+      className={`game-logo ${size}`}
+      style={{ "--game": game?.color || "#8a8a90" }}
+    >
+      {game?.logo && !failed ? (
+        <img
+          src={game.logo}
+          alt=""
+          loading="lazy"
+          draggable={false}
+          onError={() => setFailed(true)}
+        />
+      ) : (
+        <b>{initials(game?.short || game?.label)}</b>
+      )}
+    </span>
+  );
+}
+
+function SourceIcon({ domain, name }) {
+  const [failed, setFailed] = useState(false);
+
+  if (!domain || failed) {
+    return <span className="source-icon">{initials(name).slice(0, 2)}</span>;
+  }
+
+  return (
+    <span className="source-icon">
+      <img
+        src={favicon(domain)}
+        alt=""
+        loading="lazy"
+        referrerPolicy="no-referrer"
+        draggable={false}
+        onError={() => setFailed(true)}
+      />
+    </span>
+  );
+}
+
+/* =========================================================
    MATCH PIECES
    ========================================================= */
 
@@ -578,6 +754,7 @@ function MatchCard({ match }) {
     b.score !== null &&
     a.score !== b.score;
   const showScore = match.status !== "upcoming";
+  const game = GAME_BY_ID[match.game];
 
   const Tag = match.url ? "a" : "div";
   const linkProps = match.url
@@ -588,6 +765,7 @@ function MatchCard({ match }) {
     <Tag className="system-card match-card" {...linkProps}>
       <div className="match-top">
         <span className="match-game">
+          {game && <GameLogo game={game} size="xs" />}
           {gameLabel(match.game)}
           {match.bestOf ? ` ${match.bestOf}` : ""}
         </span>
@@ -615,7 +793,21 @@ function MatchCard({ match }) {
       </div>
 
       <div className="match-foot">
-        <span className="match-event">{match.event || "Esports"}</span>
+        <span className="match-event">
+          {match.eventLogo && (
+            <img
+              src={match.eventLogo}
+              alt=""
+              loading="lazy"
+              referrerPolicy="no-referrer"
+              draggable={false}
+              onError={(event) => {
+                event.currentTarget.style.display = "none";
+              }}
+            />
+          )}
+          <span>{match.event || "Esports"}</span>
+        </span>
 
         {match.status === "live" && match.url && <span>Watch live</span>}
       </div>
@@ -659,6 +851,39 @@ function StripItem({ match }) {
   );
 }
 
+function GameTile({ game, counts, active, onSelect }) {
+  const live = counts?.live || 0;
+  const upcoming = counts?.upcoming || 0;
+
+  return (
+    <button
+      type="button"
+      className={`game-tile ${active ? "active" : ""}`}
+      style={{ "--game": game.color }}
+      aria-pressed={active}
+      onClick={() => onSelect(game.id)}
+    >
+      <GameLogo game={game} size="lg" />
+
+      <span className="game-tile-body">
+        <strong>{game.label}</strong>
+        <span>{game.blurb}</span>
+      </span>
+
+      <span className="game-tile-foot">
+        {live > 0 ? (
+          <span className="game-tile-live">
+            <i className="live-dot" />
+            {live} live
+          </span>
+        ) : (
+          <span>{upcoming > 0 ? `${upcoming} upcoming` : "No matches"}</span>
+        )}
+      </span>
+    </button>
+  );
+}
+
 function NewsCard({ item, featured }) {
   const [failed, setFailed] = useState(false);
 
@@ -686,7 +911,8 @@ function NewsCard({ item, featured }) {
         <span className="news-title">{item.title}</span>
 
         <span className="news-meta">
-          {[item.source, item.age].filter(Boolean).join(", ")}
+          <SourceIcon domain={item.domain} name={item.source || "News"} />
+          <span>{[item.source, item.age].filter(Boolean).join(" · ")}</span>
         </span>
       </span>
     </a>
@@ -745,6 +971,7 @@ export default function Home() {
 
   const [query, setQuery] = useState("");
   const [game, setGame] = useState("all");
+  const [source, setSource] = useState("all");
   const [userTab, setUserTab] = useState(null);
   const [matchLimit, setMatchLimit] = useState(MATCH_PAGE_SIZE);
   const [newsLimit, setNewsLimit] = useState(NEWS_FIRST_PAGE);
@@ -761,6 +988,29 @@ export default function Home() {
   );
 
   const activeTab = userTab || (liveCount > 0 ? "live" : "upcoming");
+
+  const gameCounts = useMemo(() => {
+    const counts = {};
+
+    allMatches.forEach((match) => {
+      const entry = (counts[match.game] ||= { live: 0, upcoming: 0 });
+
+      if (match.status === "live") entry.live += 1;
+      if (match.status === "upcoming") entry.upcoming += 1;
+    });
+
+    return counts;
+  }, [allMatches]);
+
+  const newsSources = useMemo(() => {
+    const counts = new Map();
+
+    allNews.forEach((item) => {
+      if (item.source) counts.set(item.source, (counts.get(item.source) || 0) + 1);
+    });
+
+    return [...counts.entries()].sort((a, b) => b[1] - a[1]);
+  }, [allNews]);
 
   /* ---------- filtering ---------- */
 
@@ -790,11 +1040,12 @@ export default function Home() {
 
   const news = useMemo(
     () =>
-      allNews.filter(
-        (item) =>
-          !q || `${item.title} ${item.source}`.toLowerCase().includes(q)
-      ),
-    [allNews, q]
+      allNews.filter((item) => {
+        if (source !== "all" && item.source !== source) return false;
+
+        return !q || `${item.title} ${item.source}`.toLowerCase().includes(q);
+      }),
+    [allNews, q, source]
   );
 
   const strip = useMemo(() => {
@@ -817,7 +1068,7 @@ export default function Home() {
 
   useEffect(() => {
     setNewsLimit(NEWS_FIRST_PAGE);
-  }, [q]);
+  }, [q, source]);
 
   /* ---------- "/" focuses search, Esc clears it ---------- */
 
@@ -841,6 +1092,11 @@ export default function Home() {
 
     return () => window.removeEventListener("keydown", onKey);
   }, []);
+
+  const pickGame = (id) => {
+    setGame((current) => (current === id ? "all" : id));
+    document.getElementById("matches")?.scrollIntoView({ behavior: "smooth" });
+  };
 
   /* ---------- derived view data ---------- */
 
@@ -881,19 +1137,33 @@ export default function Home() {
         </a>
 
         <div className="explorer-nav-links">
+          <a className="explorer-nav-link" href="#games">
+            Games
+          </a>
           <a className="explorer-nav-link" href="#matches">
             Matches
           </a>
           <a className="explorer-nav-link" href="#news">
             News
           </a>
-          <a className="explorer-nav-link" href="#soon">
-            Coming soon
+          <a className="explorer-nav-link" href="#networks">
+            Networks
           </a>
           <a className="explorer-nav-link" href="https://fades.lol">
             Fades
           </a>
         </div>
+
+        <a className="nav-cta" href="#matches">
+          {liveCount > 0 ? (
+            <>
+              <i className="live-dot" />
+              {liveCount} live
+            </>
+          ) : (
+            "Matches"
+          )}
+        </a>
       </nav>
 
       <div className="explorer-main">
@@ -921,8 +1191,8 @@ export default function Home() {
           </h1>
 
           <p>
-            Live scores, upcoming matches and the latest news from CS2,
-            Valorant, Dota 2 and League of Legends.
+            Live scores, upcoming matches and headlines from the biggest gaming
+            news networks, across {GAMES.length} esports titles.
           </p>
 
           <div className="explorer-search" role="search">
@@ -955,6 +1225,34 @@ export default function Home() {
               </span>
             )}
           </div>
+
+          <div className="hero-actions">
+            <a className="hub-button primary" href="#matches">
+              Watch live matches
+            </a>
+            <a className="hub-button" href="#news">
+              Read the news
+            </a>
+          </div>
+
+          <div className="hero-stats">
+            <div>
+              <strong>{liveCount}</strong>
+              <span>Live now</span>
+            </div>
+            <div>
+              <strong>{allMatches.length}</strong>
+              <span>Matches tracked</span>
+            </div>
+            <div>
+              <strong>{allNews.length}</strong>
+              <span>Headlines</span>
+            </div>
+            <div>
+              <strong>{NETWORKS.length}</strong>
+              <span>News networks</span>
+            </div>
+          </div>
         </section>
 
         {/* ================= LIVE STRIP ================= */}
@@ -968,6 +1266,40 @@ export default function Home() {
             </div>
           </div>
         )}
+
+        {/* ================= GAMES ================= */}
+
+        <section className="systems-section hub-section" id="games">
+          <div className="section-heading">
+            <div className="section-heading-copy">
+              <span>Coverage</span>
+              <h2>Pick your game</h2>
+              <p>Choose a title to filter matches below.</p>
+            </div>
+
+            {game !== "all" && (
+              <button
+                type="button"
+                className="hub-button"
+                onClick={() => setGame("all")}
+              >
+                Show all games
+              </button>
+            )}
+          </div>
+
+          <div className="games-grid">
+            {GAMES.map((item) => (
+              <GameTile
+                key={item.id}
+                game={item}
+                counts={gameCounts[item.id]}
+                active={game === item.id}
+                onSelect={pickGame}
+              />
+            ))}
+          </div>
+        </section>
 
         {/* ================= MATCHES ================= */}
 
@@ -997,8 +1329,8 @@ export default function Home() {
               ))}
             </div>
 
-            <div className="hub-pills" role="group" aria-label="Game">
-              {GAMES.map((item) => (
+            <div className="hub-pills scroll" role="group" aria-label="Game">
+              {GAME_FILTERS.map((item) => (
                 <button
                   key={item.id}
                   type="button"
@@ -1060,9 +1392,41 @@ export default function Home() {
             <div className="section-heading-copy">
               <span>Headlines</span>
               <h2>Gaming news</h2>
-              <p>From IGN, PC Gamer, Eurogamer and Rock Paper Shotgun.</p>
+              <p>Live from {NETWORKS.length} gaming news networks, refreshed every 5 minutes.</p>
             </div>
+
+            {newsFeed.updatedAt > 0 && !newsFeed.error && (
+              <span className="hub-updated">
+                Updated {timeFormat.format(newsFeed.updatedAt)}
+              </span>
+            )}
           </div>
+
+          {newsSources.length > 1 && (
+            <div className="hub-toolbar">
+              <div className="hub-pills scroll" role="group" aria-label="News source">
+                <button
+                  type="button"
+                  aria-pressed={source === "all"}
+                  onClick={() => setSource("all")}
+                >
+                  All sources
+                </button>
+
+                {newsSources.map(([name, count]) => (
+                  <button
+                    key={name}
+                    type="button"
+                    aria-pressed={source === name}
+                    onClick={() => setSource(name)}
+                  >
+                    {name}
+                    <span className="hub-count">{count}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           {newsFeed.loading && !newsFeed.data ? (
             <Skeletons />
@@ -1103,56 +1467,68 @@ export default function Home() {
           )}
         </section>
 
-        {/* ================= COMING SOON ================= */}
+        {/* ================= NETWORKS ================= */}
 
-        <section className="systems-section hub-section" id="soon">
+        <section className="systems-section hub-section" id="networks">
           <div className="section-heading">
             <div className="section-heading-copy">
-              <span>Next up</span>
-              <h2>Coming soon</h2>
-              <p>Built on your Fades account.</p>
+              <span>Sources</span>
+              <h2>News networks</h2>
+              <p>Every headline links straight to the publisher.</p>
             </div>
           </div>
 
-          <div className="system-grid">
-            {ROADMAP.map((item) => (
-              <div className="system-card" key={item.name}>
-                <div className="system-card-top">
-                  <div className="system-icon">
-                    <img src={LOGO_SRC} alt="" draggable={false} />
-                  </div>
+          <div className="network-grid">
+            {NETWORKS.map((network) => {
+              const count =
+                newsSources.find(([name]) => name === network.name)?.[1] || 0;
 
-                  <span className="system-status">
-                    <span className="system-status-dot" />
-                    Coming soon
+              return (
+                <a
+                  className="network-card"
+                  key={network.name}
+                  href={network.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <SourceIcon domain={network.domain} name={network.name} />
+
+                  <span className="network-copy">
+                    <strong>{network.name}</strong>
+                    <span>
+                      {count > 0 ? `${count} headlines` : network.domain}
+                    </span>
                   </span>
-                </div>
 
-                <h3>{item.name}</h3>
-                <p>{item.description}</p>
-
-                <div className="system-card-footer">
-                  <span className="system-domain">gaming.fades.lol{item.path}</span>
-                </div>
-              </div>
-            ))}
+                  <ExternalIcon />
+                </a>
+              );
+            })}
           </div>
         </section>
 
-        {/* ================= ABOUT ================= */}
+        {/* ================= CTA ================= */}
 
         <section className="about-section" id="about">
           <div className="about-card">
             <div>
-              <span className="about-kicker">About</span>
+              <span className="about-kicker">Fades Gaming</span>
 
               <h2>Esports data, in one place.</h2>
 
               <p>
-                Fades Gaming brings live scores, schedules and news together.
-                Teams, tournaments and rankings are on the way, all tied to your
-                Fades account.
+                Live scores, schedules and headlines from the biggest gaming
+                publishers, with no accounts, no paywalls and no clutter.
               </p>
+
+              <div className="hero-actions left">
+                <a className="hub-button primary" href="#matches">
+                  See what&apos;s live
+                </a>
+                <a className="hub-button" href="#games">
+                  Browse games
+                </a>
+              </div>
             </div>
 
             <div className="about-stats">
@@ -1172,7 +1548,7 @@ export default function Home() {
               </div>
 
               <div className="about-stat">
-                <strong>{GAMES.length - 1}</strong>
+                <strong>{GAMES.length}</strong>
                 <span>Games covered</span>
               </div>
             </div>
@@ -1190,6 +1566,8 @@ export default function Home() {
         </div>
 
         <div className="explorer-footer-links">
+          <a href="#games">Games</a>
+          <a href="#news">News</a>
           <a href="https://fades.lol">
             Fades <ExternalIcon />
           </a>
