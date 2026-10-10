@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import "./dashboard.css";
+
 const API_BASE = process.env.NEXT_PUBLIC_FADES_API || "https://api.fades.lol";
 const GAMING_API = process.env.NEXT_PUBLIC_GAMING_API || `${API_BASE}/gaming`;
 const SIGN_IN_URL = process.env.NEXT_PUBLIC_FADES_SIGNIN || "https://fades.lol";
@@ -827,7 +829,7 @@ export default function DashboardPage() {
 
   if (session.loading) {
     return (
-      <main className="systems-section hub-section">
+      <main className="dash systems-section hub-section">
         <div className="skeleton-card" />
       </main>
     );
@@ -835,7 +837,7 @@ export default function DashboardPage() {
 
   if (!session.signedIn) {
     return (
-      <main className="systems-section hub-section">
+      <main className="dash systems-section hub-section">
         <Empty title="Sign in to see your dashboard" body="Your teams, parties, tournaments and posts live here." />
         <a className="hub-button primary" href={SIGN_IN_URL}>Sign in</a>
       </main>
@@ -859,7 +861,7 @@ export default function DashboardPage() {
   ];
 
   return (
-    <main className="systems-section hub-section" id="dashboard">
+    <main className="dash systems-section hub-section" id="dashboard">
       <div className="section-heading">
         <div className="section-heading-copy">
           <h2>Your dashboard</h2>
