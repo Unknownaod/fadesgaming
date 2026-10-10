@@ -56,7 +56,7 @@ const GAMES = [
     label: "Dota 2",
     short: "Dota 2",
     color: "#e0473a",
-    logo: SiDota2,
+    logo: null,
     blurb: "The International and every major qualifier.",
   },
   {
