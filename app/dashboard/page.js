@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import "./dashboard.css";
 
@@ -172,7 +172,7 @@ function Overview({ setTab, prefs }) {
     <>
       <div className="system-grid">
         {actions.map(([title, body, target]) => (
-          <div className="system-card" key={title}>
+          <div className="system-card community-card" key={title}>
             <strong className="card-title">{title}</strong>
             <span className="card-sub">{body}</span>
             <div className="card-actions">
@@ -183,17 +183,25 @@ function Overview({ setTab, prefs }) {
       </div>
 
       {prefs.hubStats === "on" && (
-        <>
-          <div className="section-heading-copy"><span>Across the hub</span></div>
-          <div className="stat-grid">
+        <div className="about-card">
+          <div>
+            <span className="about-kicker">Across the hub</span>
+            <h2>Everyone's playing.</h2>
+            <p>Live totals from the Fades gaming community. Jump in, find a squad and climb the board.</p>
+            <div className="hero-actions left">
+              <a className="hub-button primary" href={HUB_URL}>Open the hub</a>
+              <Btn onClick={() => setTab("tournaments")}>Host a tournament</Btn>
+            </div>
+          </div>
+          <div className="about-stats">
             {hub.map(([label, value]) => (
-              <div key={label} className="stat-card">
+              <div className="about-stat" key={label}>
                 <strong>{value ?? "-"}</strong>
                 <span>{label}</span>
               </div>
             ))}
           </div>
-        </>
+        </div>
       )}
     </>
   );
@@ -889,7 +897,7 @@ function AccountTab({ session, setTab }) {
     <div className="account-grid">
       <div className="system-card">
         <div className="account-id">
-          <Avatar user={user} xl />
+          <Avatar user={user} sm />
           <div>
             <strong className="card-title">{user.username}</strong>
             <span className="card-sub">{teams.length} {teams.length === 1 ? "team" : "teams"} · {session.me.follows} following</span>
@@ -999,6 +1007,7 @@ function SettingsTab({ prefs, setPrefs, tabs }) {
    ========================================================= */
 
 const HUB_URL = process.env.NEXT_PUBLIC_HUB_URL || "https://gaming.fades.lol";
+const LOGO = process.env.NEXT_PUBLIC_LOGO || "/logo.png";
 
 const COPY = {
   overview: ["Overview", "Your activity and shortcuts."],
@@ -1022,34 +1031,64 @@ const GROUPS = [
   ["Account", ["profile", "account", "settings"]],
 ];
 
-function Avatar({ user, xl }) {
+function Avatar({ user, sm }) {
   return (
-    <span className={`dash-avatar ${xl ? "xl" : ""}`}>
+    <span className={`dash-avatar ${sm ? "sm" : ""}`}>
       {user?.avatar ? <img src={user.avatar} alt="" /> : (user?.username || "F").slice(0, 1).toUpperCase()}
     </span>
   );
 }
 
+function Logo() {
+  const [bad, setBad] = useState(false);
+  return bad ? <b>F</b> : <img src={LOGO} alt="" onError={() => setBad(true)} />;
+}
+
 function Nav({ user }) {
+  const links = [["Gaming hub", HUB_URL], ["Community", `${HUB_URL}#community`], ["Fades account", SIGN_IN_URL]];
+
   return (
-    <header className="dash-nav">
-      <a className="dash-brand" href={HUB_URL}>
-        <span className="dash-logo">F</span>
-        <span><strong>Fades</strong><em>Dashboard</em></span>
+    <header className="explorer-nav">
+      <a className="explorer-brand" href={HUB_URL}>
+        <span className="explorer-brand-logo"><Logo /></span>
+        <span className="explorer-brand-copy"><strong>Fades</strong><span>Dashboard</span></span>
       </a>
-      {user && (
-        <div className="dash-nav-right">
-          <a className="dash-link" href={HUB_URL}>Back to hub</a>
-          <Avatar user={user} />
-        </div>
-      )}
+
+      <nav className="explorer-nav-links">
+        {links.map(([label, href]) => (
+          <a key={label} className="explorer-nav-link" href={href}>{label}</a>
+        ))}
+      </nav>
+
+      <div className="nav-actions">
+        {user && <span className="nav-user">{user.username}</span>}
+        <a className="nav-cta" href={user ? HUB_URL : SIGN_IN_URL}>{user ? "Back to hub" : "Sign in"}</a>
+      </div>
     </header>
+  );
+}
+
+function Footer() {
+  return (
+    <footer className="explorer-footer">
+      <div className="explorer-footer-brand">
+        <img src={LOGO} alt="" onError={(e) => (e.currentTarget.style.display = "none")} />
+        <strong>Fades</strong>
+        <span>Gaming dashboard</span>
+      </div>
+      <div className="explorer-footer-links">
+        <a href={HUB_URL}>Gaming hub</a>
+        <a href={`${HUB_URL}#community`}>Community</a>
+        <a href={SIGN_IN_URL}>Fades account</a>
+      </div>
+    </footer>
   );
 }
 
 export default function DashboardPage() {
   const session = useSession();
   const [tab, setTab] = useState("overview");
+  const [query, setQuery] = useState("");
   const [prefs, setPrefs] = useState(DEFAULT_PREFS);
   const gameList = useApi("/games");
 
@@ -1078,18 +1117,22 @@ export default function DashboardPage() {
 
   if (session.loading || !session.signedIn) {
     return (
-      <div className="dash" data-density={prefs.density}>
+      <div className="explorer" data-density={prefs.density}>
         <Nav />
-        <div className="dash-center">
-          {session.loading ? (
-            <div className="skeleton-card" style={{ width: "min(420px, 100%)" }} />
-          ) : (
-            <>
-              <Empty title="Sign in to see your dashboard" body="Your teams, parties, tournaments and posts live here." />
-              <a className="hub-button primary" href={SIGN_IN_URL}>Sign in</a>
-            </>
-          )}
-        </div>
+        <main className="explorer-main">
+          <section className="systems-section" style={{ paddingTop: 80 }}>
+            {session.loading ? (
+              <div className="skeleton-card" />
+            ) : (
+              <div className="systems-empty">
+                <h3>Sign in to see your dashboard</h3>
+                <p>Your teams, parties, tournaments and posts live here.</p>
+                <a className="hub-button primary" href={SIGN_IN_URL}>Sign in</a>
+              </div>
+            )}
+          </section>
+        </main>
+        <Footer />
       </div>
     );
   }
@@ -1100,71 +1143,102 @@ export default function DashboardPage() {
   const allTabs = groups.flatMap(([, ids]) => ids);
   const [title, blurb] = COPY[tab];
 
+  const go = (id) => {
+    setTab(id);
+    setQuery("");
+    document.getElementById("sections")?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  const q = query.trim().toLowerCase();
+  const matches = q ? allTabs.filter((id) => `${COPY[id][0]} ${COPY[id][1]}`.toLowerCase().includes(q)) : [];
+
   const stats = [["Teams", teams.length], ["Following", follows], ["Unread", unread], ["Role", admin ? "Mod" : "Player"]];
 
   return (
-    <div className="dash" id="dashboard" data-density={prefs.density}>
+    <div className="explorer" data-density={prefs.density}>
       <Nav user={user} />
 
-      <main className="dash-main">
-        <section className="dash-hero">
-          <Avatar user={user} xl />
-          <span className="dash-eyebrow"><i />Dashboard</span>
+      <main className="explorer-main">
+        <section className="explorer-hero compact">
+          <Avatar user={user} />
+          <span className="explorer-eyebrow"><span className="explorer-eyebrow-dot" />Dashboard</span>
           <h1>{profile?.gamertag || user.username}<span> HQ</span></h1>
           <p>Manage your squads, brackets, posts and account in one place.</p>
-          <div className="dash-stats">
+
+          <label className="explorer-search">
+            <span className="explorer-search-icon" aria-hidden="true">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
+            </span>
+            <input
+              value={query}
+              placeholder="Search your dashboard: teams, tournaments, settings..."
+              aria-label="Search dashboard sections"
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && matches[0] && go(matches[0])}
+            />
+            <span className="explorer-search-kbd">Enter</span>
+          </label>
+
+          <div className="hero-actions dash-results">
+            {q ? (
+              matches.length ? (
+                matches.map((id) => <Btn key={id} onClick={() => go(id)}>{COPY[id][0]}</Btn>)
+              ) : (
+                <span className="card-sub">No sections match that.</span>
+              )
+            ) : (
+              <>
+                <Btn primary onClick={() => go("teams")}>Create a team</Btn>
+                <Btn onClick={() => go("tournaments")}>Host a tournament</Btn>
+                <Btn onClick={() => go("messages")}>Open messages</Btn>
+              </>
+            )}
+          </div>
+
+          <div className="hero-stats">
             {stats.map(([label, value]) => (
               <div key={label}><strong>{value}</strong><span>{label}</span></div>
             ))}
           </div>
         </section>
 
-        <div className="dash-layout">
-          <nav className="dash-side" aria-label="Dashboard sections">
-            {groups.map(([label, ids]) => (
-              <Fragment key={label}>
-                <div className="dash-group">{label}</div>
-                {ids.map((id) => (
-                  <button key={id} type="button" className="dash-tab" aria-pressed={tab === id} onClick={() => setTab(id)}>
-                    {COPY[id][0]}
-                    {id === "messages" && unread > 0 && <span className="dash-count">{unread}</span>}
-                  </button>
-                ))}
-              </Fragment>
-            ))}
-          </nav>
-
-          <section className="dash-content">
+        <section className="systems-section" id="sections">
+          <div className="section-heading">
             <div className="section-heading-copy">
               <span>{groups.find(([, ids]) => ids.includes(tab))?.[0]}</span>
               <h2>{title}</h2>
               <p>{blurb}</p>
             </div>
+          </div>
 
-            {tab === "overview" && <Overview setTab={setTab} prefs={prefs} />}
-            {tab === "teams" && <TeamsTab games={games} session={session} />}
-            {tab === "parties" && <PartiesTab games={games} meId={meId} />}
-            {tab === "tournaments" && <TournamentsTab games={games} meId={meId} />}
-            {tab === "posts" && <PostsTab games={games} meId={meId} />}
-            {tab === "games" && <GamesTab allGames={allGames} meId={meId} reloadGames={gameList.reload} />}
-            {tab === "follows" && <FollowsTab games={games} onChange={session.refresh} />}
-            {tab === "messages" && <MessagesTab meId={meId} onChange={session.refresh} />}
-            {tab === "predictions" && <PredictionsTab games={games} />}
-            {tab === "profile" && <ProfileTab onSaved={session.refresh} />}
-            {tab === "account" && <AccountTab session={session} setTab={setTab} />}
-            {tab === "settings" && <SettingsTab prefs={prefs} setPrefs={setPrefs} tabs={allTabs} />}
-            {tab === "reports" && admin && <ReportsTab />}
-          </section>
-        </div>
+          <div className="hub-toolbar">
+            <div className="hub-pills" role="group" aria-label="Dashboard sections">
+              {allTabs.map((id) => (
+                <button key={id} type="button" aria-pressed={tab === id} onClick={() => setTab(id)}>
+                  {COPY[id][0]}
+                  {id === "messages" && unread > 0 && <span className="hub-count">{unread}</span>}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {tab === "overview" && <Overview setTab={go} prefs={prefs} />}
+          {tab === "teams" && <TeamsTab games={games} session={session} />}
+          {tab === "parties" && <PartiesTab games={games} meId={meId} />}
+          {tab === "tournaments" && <TournamentsTab games={games} meId={meId} />}
+          {tab === "posts" && <PostsTab games={games} meId={meId} />}
+          {tab === "games" && <GamesTab allGames={allGames} meId={meId} reloadGames={gameList.reload} />}
+          {tab === "follows" && <FollowsTab games={games} onChange={session.refresh} />}
+          {tab === "messages" && <MessagesTab meId={meId} onChange={session.refresh} />}
+          {tab === "predictions" && <PredictionsTab games={games} />}
+          {tab === "profile" && <ProfileTab onSaved={session.refresh} />}
+          {tab === "account" && <AccountTab session={session} setTab={go} />}
+          {tab === "settings" && <SettingsTab prefs={prefs} setPrefs={setPrefs} tabs={allTabs} />}
+          {tab === "reports" && admin && <ReportsTab />}
+        </section>
       </main>
 
-      <footer className="dash-footer">
-        <strong>Fades</strong>
-        <nav>
-          <a href={HUB_URL}>Gaming hub</a>
-          <a href={SIGN_IN_URL}>Fades account</a>
-        </nav>
-      </footer>
+      <Footer />
     </div>
   );
 }
