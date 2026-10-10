@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-// adjust this path to wherever GamingHub.jsx lives in your project
-import { GAMING_API, SIGN_IN_URL, useSession } from "../../components/GamingHub";
+const API_BASE = process.env.NEXT_PUBLIC_FADES_API || "https://api.fades.lol";
+const GAMING_API = process.env.NEXT_PUBLIC_GAMING_API || `${API_BASE}/gaming`;
+const SIGN_IN_URL = process.env.NEXT_PUBLIC_FADES_SIGNIN || "https://fades.lol";
 
 /* =========================================================
    API + SHARED HOOKS (same credentialed fetch as GamingHub)
@@ -70,6 +71,24 @@ function useAct(done) {
   );
 
   return { act, error, busy };
+}
+
+function useSession() {
+  const [state, setState] = useState({ loading: true, me: null });
+
+  const refresh = useCallback(async () => {
+    try {
+      setState({ loading: false, me: await api("/me") });
+    } catch {
+      setState({ loading: false, me: null });
+    }
+  }, []);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  return { ...state, signedIn: Boolean(state.me?.user), refresh };
 }
 
 function useFields(initial) {
