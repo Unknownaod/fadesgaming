@@ -800,6 +800,12 @@ export function Community({ games: builtIn, session }) {
             Sign in to take part
           </a>
         )}
+
+        {session.signedIn && (
+          <a className="hub-button primary" href="/dashboard">
+            Your dashboard
+          </a>
+        )}
       </div>
 
       <div className="hub-toolbar">
