@@ -48,7 +48,7 @@ const GAMES = [
     label: "Valorant",
     short: "Valorant",
     color: "#ff4655",
-    logo: SiValorant,
+    logo: null,
     blurb: "Champions, Masters and regional leagues.",
   },
   {
@@ -64,7 +64,7 @@ const GAMES = [
     label: "League of Legends",
     short: "LoL",
     color: "#c8a24b",
-    logo: SiLeagueoflegends,
+    logo: null,
     blurb: "Worlds, MSI and the regional splits.",
   },
   {
@@ -72,7 +72,7 @@ const GAMES = [
     label: "Rocket League",
     short: "Rocket League",
     color: "#3b8cff",
-    logo: SiRocket,
+    logo: null,
     blurb: "RLCS and open qualifiers.",
   },
   {
@@ -80,7 +80,7 @@ const GAMES = [
     label: "Overwatch 2",
     short: "Overwatch 2",
     color: "#f99e1a",
-    logo: SiOverwatch,
+    logo: null,
     blurb: "Champions Series and pro play.",
   },
   {
@@ -88,7 +88,7 @@ const GAMES = [
     label: "Rainbow Six Siege",
     short: "R6 Siege",
     color: "#4aa3df",
-    logo: SiUbisoft,
+    logo: null,
     blurb: "Six Invitational and the Siege X leagues.",
   },
   {
@@ -96,7 +96,7 @@ const GAMES = [
     label: "Call of Duty",
     short: "Call of Duty",
     color: "#7ac142",
-    logo: SiCallofduty,
+    logo: null,
     blurb: "Call of Duty League and open events.",
   },
   {
@@ -104,7 +104,7 @@ const GAMES = [
     label: "PUBG",
     short: "PUBG",
     color: "#f2a900",
-    logo: SiPubg,
+    logo: null,
     blurb: "Global series and regional circuits.",
   },
   {
@@ -112,7 +112,7 @@ const GAMES = [
     label: "StarCraft II",
     short: "StarCraft II",
     color: "#3aa0ff",
-    logo: SiStarcraft,
+    logo: null,
     blurb: "GSL, IEM and the ladder's best.",
   },
 ];
