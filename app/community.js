@@ -2,6 +2,19 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import {
+  SiCounterstrike,
+  SiValorant,
+  SiDota2,
+  SiLeagueoflegends,
+  SiRocket,
+  SiOverwatch,
+  SiUbisoft,
+  SiCallofduty,
+  SiPubg,
+  SiStarcraft,
+} from "react-icons/si";
+
 const API_BASE = process.env.NEXT_PUBLIC_FADES_API || "https://api.fades.lol";
 
 export const GAMING_API =
