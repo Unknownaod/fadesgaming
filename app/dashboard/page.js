@@ -159,23 +159,35 @@ function Overview({ session, setTab }) {
   const { me } = session;
   const s = stats.data || {};
 
-  const cards = [
-    ["Your teams", me.teams.length, "teams"],
+  const mine = [
+    ["Teams", me.teams.length, "teams"],
     ["Following", me.follows, "follows"],
     ["Unread messages", me.unread, "messages"],
-    ["Open parties (all)", s.openLfg ?? "-", "parties"],
-    ["Players on the hub", s.players ?? "-", "profile"],
-    ["Tournaments (all)", s.tournaments ?? "-", "tournaments"],
   ];
+  const hub = [["Players", s.players], ["Open parties", s.openLfg], ["Tournaments", s.tournaments], ["Posts", s.posts]];
 
   return (
-    <div className="system-grid">
-      {cards.map(([label, value, tab]) => (
-        <Card key={label} top={label} title={String(value)}>
-          <Btn onClick={() => setTab(tab)}>Open</Btn>
-        </Card>
-      ))}
-    </div>
+    <>
+      <div className="stat-grid">
+        {mine.map(([label, value, target]) => (
+          <button key={label} type="button" className="stat-card" onClick={() => setTab(target)}>
+            <strong>{value}</strong>
+            <span>{label}</span>
+          </button>
+        ))}
+      </div>
+
+      <div className="section-heading-copy"><span>Across the hub</span></div>
+
+      <div className="stat-grid quiet">
+        {hub.map(([label, value]) => (
+          <div key={label} className="stat-card static">
+            <strong>{value ?? "-"}</strong>
+            <span>{label}</span>
+          </div>
+        ))}
+      </div>
+    </>
   );
 }
 
@@ -819,6 +831,43 @@ function ReportsTab() {
    PAGE
    ========================================================= */
 
+const HUB_URL = process.env.NEXT_PUBLIC_HUB_URL || "https://gaming.fades.lol";
+
+const COPY = {
+  overview: ["Overview", "Your activity at a glance."],
+  profile: ["Profile", "How other players see you."],
+  teams: ["Teams", "Create squads and manage who's in them."],
+  parties: ["Parties", "Groups you're looking for or have joined."],
+  tournaments: ["Tournaments", "Host brackets and report results."],
+  posts: ["Posts", "Clips, guides and thoughts you've shared."],
+  games: ["Games", "Community games you've added."],
+  follows: ["Following", "Games, teams and players you follow."],
+  messages: ["Messages", "Direct messages and group chats."],
+  predictions: ["Predictions", "Your match picks and how they went."],
+  reports: ["Reports", "Open reports waiting on a moderator."],
+};
+
+function Avatar({ user }) {
+  return <span className="dash-avatar">{user?.avatar ? <img src={user.avatar} alt="" /> : (user?.username || "F").slice(0, 1).toUpperCase()}</span>;
+}
+
+function Nav({ user }) {
+  return (
+    <header className="dash-nav">
+      <a className="dash-brand" href={HUB_URL}>
+        <span className="dash-logo">F</span>
+        <span><strong>Fades</strong><em>Dashboard</em></span>
+      </a>
+      {user && (
+        <div className="dash-nav-right">
+          <a className="dash-link" href={HUB_URL}>Back to hub</a>
+          <Avatar user={user} />
+        </div>
+      )}
+    </header>
+  );
+}
+
 export default function DashboardPage() {
   const session = useSession();
   const [tab, setTab] = useState("overview");
@@ -827,69 +876,77 @@ export default function DashboardPage() {
   const allGames = gameList.data?.games || [];
   const games = allGames.map((g) => ({ id: g.id, label: g.label }));
 
-  if (session.loading) {
+  if (session.loading || !session.signedIn) {
     return (
-      <main className="dash systems-section hub-section">
-        <div className="skeleton-card" />
-      </main>
+      <div className="dash">
+        <Nav />
+        <div className="dash-center">
+          {session.loading ? (
+            <div className="skeleton-card" style={{ width: "min(420px, 100%)" }} />
+          ) : (
+            <>
+              <Empty title="Sign in to see your dashboard" body="Your teams, parties, tournaments and posts live here." />
+              <a className="hub-button primary" href={SIGN_IN_URL}>Sign in</a>
+            </>
+          )}
+        </div>
+      </div>
     );
   }
 
-  if (!session.signedIn) {
-    return (
-      <main className="dash systems-section hub-section">
-        <Empty title="Sign in to see your dashboard" body="Your teams, parties, tournaments and posts live here." />
-        <a className="hub-button primary" href={SIGN_IN_URL}>Sign in</a>
-      </main>
-    );
-  }
-
-  const meId = session.me.user.id;
+  const { user, profile, admin, unread } = session.me;
+  const meId = user.id;
 
   const tabs = [
-    ["overview", "Overview"],
-    ["profile", "Profile"],
-    ["teams", "Teams"],
-    ["parties", "Parties"],
-    ["tournaments", "Tournaments"],
-    ["posts", "Posts"],
-    ["games", "Games"],
-    ["follows", "Following"],
-    ["messages", "Messages"],
-    ["predictions", "Predictions"],
-    ...(session.me.admin ? [["reports", "Reports"]] : []),
+    ...Object.keys(COPY).filter((id) => id !== "reports"),
+    ...(admin ? ["reports"] : []),
   ];
+  const [title, blurb] = COPY[tab];
 
   return (
-    <main className="dash systems-section hub-section" id="dashboard">
-      <div className="section-heading">
-        <div className="section-heading-copy">
-          <h2>Your dashboard</h2>
-          <p>Manage your profile, squads, tournaments and posts in one place.</p>
-        </div>
-      </div>
+    <div className="dash" id="dashboard">
+      <Nav user={user} />
 
-      <div className="hub-toolbar">
-        <div className="hub-pills scroll" role="group" aria-label="Dashboard sections">
-          {tabs.map(([id, label]) => (
-            <button key={id} type="button" aria-pressed={tab === id} onClick={() => setTab(id)}>
-              {label}
-            </button>
-          ))}
-        </div>
-      </div>
+      <main className="dash-main">
+        <section className="dash-hero">
+          <Avatar user={user} />
+          <div>
+            <h1>{profile?.gamertag || user.username}{admin && <span className="dash-badge">Moderator</span>}</h1>
+            <p>{profile?.gamertag ? `Signed in as ${user.username}` : "Set a gamertag in your profile so players can find you."}</p>
+          </div>
+        </section>
 
-      {tab === "overview" && <Overview session={session} setTab={setTab} />}
-      {tab === "profile" && <ProfileTab />}
-      {tab === "teams" && <TeamsTab games={games} session={session} />}
-      {tab === "parties" && <PartiesTab games={games} meId={meId} />}
-      {tab === "tournaments" && <TournamentsTab games={games} meId={meId} />}
-      {tab === "posts" && <PostsTab games={games} meId={meId} />}
-      {tab === "games" && <GamesTab allGames={allGames} meId={meId} reloadGames={gameList.reload} />}
-      {tab === "follows" && <FollowsTab games={games} onChange={session.refresh} />}
-      {tab === "messages" && <MessagesTab meId={meId} onChange={session.refresh} />}
-      {tab === "predictions" && <PredictionsTab games={games} />}
-      {tab === "reports" && session.me.admin && <ReportsTab />}
-    </main>
+        <div className="dash-layout">
+          <nav className="dash-side" aria-label="Dashboard sections">
+            {tabs.map((id) => (
+              <button key={id} type="button" className="dash-tab" aria-pressed={tab === id} onClick={() => setTab(id)}>
+                {COPY[id][0]}
+                {id === "messages" && unread > 0 && <span className="dash-tab-count">{unread}</span>}
+              </button>
+            ))}
+          </nav>
+
+          <section className="dash-content">
+            <div className="section-heading-copy">
+              <span>Dashboard</span>
+              <h2>{title}</h2>
+              <p>{blurb}</p>
+            </div>
+
+            {tab === "overview" && <Overview session={session} setTab={setTab} />}
+            {tab === "profile" && <ProfileTab />}
+            {tab === "teams" && <TeamsTab games={games} session={session} />}
+            {tab === "parties" && <PartiesTab games={games} meId={meId} />}
+            {tab === "tournaments" && <TournamentsTab games={games} meId={meId} />}
+            {tab === "posts" && <PostsTab games={games} meId={meId} />}
+            {tab === "games" && <GamesTab allGames={allGames} meId={meId} reloadGames={gameList.reload} />}
+            {tab === "follows" && <FollowsTab games={games} onChange={session.refresh} />}
+            {tab === "messages" && <MessagesTab meId={meId} onChange={session.refresh} />}
+            {tab === "predictions" && <PredictionsTab games={games} />}
+            {tab === "reports" && admin && <ReportsTab />}
+          </section>
+        </div>
+      </main>
+    </div>
   );
 }
